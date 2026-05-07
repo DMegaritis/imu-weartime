@@ -72,7 +72,7 @@ example_data = LabExampleDataset(
 from imu_weartime.weartime import WtdMegaritis_LogReg
 
 single_test = example_data.get_subset(
-    cohort="HA", participant_id="001", test="Test11", trial="Trial1"
+    cohort="HA", participant_id="002", test="Test11", trial="Trial1"
 )
 
 imu_data = to_body_frame(single_test.data_ss)
