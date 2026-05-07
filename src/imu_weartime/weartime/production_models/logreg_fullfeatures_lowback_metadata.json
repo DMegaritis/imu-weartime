@@ -1,7 +1,7 @@
 {
   "model_type": "LogisticRegression",
   "version": "fullfeatures",
-  "training_date": "2026-04-07T20:53:24.206761",
+  "training_date": "2026-05-07T12:27:11.601004",
   "n_samples": 6464750,
   "n_features": 230,
   "feature_names": [
@@ -246,6 +246,7 @@
     "0": 3933125,
     "1": 2531625
   },
+  "training_time_seconds": 523,
   "sklearn_version": "1.x",
   "notes": "Trained on all 26 subjects for production deployment"
 }

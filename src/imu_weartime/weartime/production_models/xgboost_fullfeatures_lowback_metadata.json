@@ -1,7 +1,7 @@
 {
   "model_type": "XGBoost",
   "version": "fullfeatures",
-  "training_date": "2026-04-07T23:08:10.124108",
+  "training_date": "2026-05-07T12:58:58.939499",
   "n_samples": 6464750,
   "n_features": 230,
   "feature_names": [
@@ -249,6 +249,7 @@
     "0": 3933125,
     "1": 2531625
   },
+  "training_time_seconds": 738,
   "xgboost_version": "1.7.5",
   "notes": "Trained on all 26 subjects. No feature scaling required for tree-based model."
 }

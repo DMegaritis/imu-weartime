@@ -1,7 +1,7 @@
 {
   "model_type": "LogisticRegression",
   "version": "95pct",
-  "training_date": "2026-04-07T20:59:03.669562",
+  "training_date": "2026-05-07T12:11:37.344676",
   "n_samples": 6464750,
   "n_features": 99,
   "feature_names": [
@@ -115,6 +115,7 @@
     "0": 3933125,
     "1": 2531625
   },
+  "training_time_seconds": 220,
   "sklearn_version": "1.x",
   "notes": "Trained on all 26 subjects. Features selected to explain 95% of SHAP values."
 }
