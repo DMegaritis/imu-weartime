@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "imu-weartime"
+version = "0.1.0"
+description = "Wear-time detection algorithms for IMU wearable sensors"
+authors = ["Dr Dimitrios Megaritis <d.megaritis@northumbria.ac.uk>"]
+license = "Apache-2.0"
+readme = "README.md"
+package-mode = true
+packages = [{include = "imu_weartime", from = "src"}]
+include = [
+    "src/imu_weartime/weartime/production_models/*.pkl",
+    "src/imu_weartime/weartime/production_models/*.keras"
+]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.14"
+pyentrp = "2.1.0"
+typing-extensions = ">=4.5.0"
+mobgap = "==1.1.0"
+xgboost = "1.7.5"
+tensorflow = "2.18.0"
+pandas = ">=1.5.0"
+numpy = ">=1.23.0"
+scikit-learn = ">=1.2.0"
+multigait = "0.2.1"
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=7.4.0,<8"
+numpydoc = ">=1.6.0,<2"
+shap = ">=0.49.0"
+h5py = ">=3.8.0"
+psutil = ">=5.9.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
