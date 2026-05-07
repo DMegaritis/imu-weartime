@@ -12,7 +12,6 @@ This library was developed as part of the SUSTAIN Mobilise-D project and impleme
 Software developed by Dr Dimitrios Megaritis. Scientific authorship is listed in `CITATION.cff`.
 
 ---
-
 ## Installation
 
 ### From PyPI (recommended)
