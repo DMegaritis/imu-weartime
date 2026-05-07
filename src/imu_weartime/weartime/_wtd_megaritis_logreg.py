@@ -84,6 +84,7 @@ class WtdMegaritis_LogReg(BaseWeartimeDetector):
 
     # Type hints
     data_length: int
+    feature_names: list[str]
     model: Any
     scaler: Any
 
@@ -108,6 +109,9 @@ class WtdMegaritis_LogReg(BaseWeartimeDetector):
             scaler_file = files('imu_weartime.weartime.production_models').joinpath(
                 'logreg_fullfeatures_lowback_scaler.pkl'
             )
+            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
+                'logreg_fullfeatures_lowback_feature_order.pkl'
+            )
         else:  # lightweight (95% features)
             model_file = files('imu_weartime.weartime.production_models').joinpath(
                 'logreg_95pct_lowback_model.pkl'
@@ -115,12 +119,18 @@ class WtdMegaritis_LogReg(BaseWeartimeDetector):
             scaler_file = files('imu_weartime.weartime.production_models').joinpath(
                 'logreg_95pct_lowback_scaler.pkl'
             )
+            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
+                'logreg_95pct_lowback_feature_order.pkl'
+            )
 
         with model_file.open('rb') as f:
             self.model = pickle.load(f)
 
         with scaler_file.open('rb') as f:
             self.scaler = pickle.load(f)
+
+        with feature_order_file.open('rb') as f:
+            self.feature_names = pickle.load(f)
 
     @timed_action_method
     @base_weartime_docfiller
@@ -187,6 +197,9 @@ class WtdMegaritis_LogReg(BaseWeartimeDetector):
 
             # Handle NaN values (occur with zero/flat signal - kurtosis, skewness undefined)
             features_df = features_df.fillna(0)
+
+            # Reorder columns to match training order
+            features_df = features_df[self.feature_names]
 
             X_scaled = self.scaler.transform(features_df)
 

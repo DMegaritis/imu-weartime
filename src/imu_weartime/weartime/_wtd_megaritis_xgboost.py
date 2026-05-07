@@ -80,6 +80,7 @@ class WtdMegaritis_XGBoost(BaseWeartimeDetector):
 
     # Type hints
     data_length: int
+    feature_names: list[str]
 
     def __init__(
             self,
@@ -97,11 +98,18 @@ class WtdMegaritis_XGBoost(BaseWeartimeDetector):
         # Load models once during initialization
         if self.version == "full":
             model_file = files('imu_weartime.weartime.production_models').joinpath('xgboost_fullfeatures_lowback_model.pkl')
+            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
+                'xgboost_fullfeatures_lowback_feature_order.pkl')
         else:  # lightweight
             model_file = files('imu_weartime.weartime.production_models').joinpath('xgboost_90pct_lowback_model.pkl')
+            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
+                'xgboost_90pct_lowback_feature_order.pkl')
 
         with model_file.open('rb') as f:
             self.model = pickle.load(f)
+
+        with feature_order_file.open('rb') as f:
+            self.feature_names = pickle.load(f)
 
     @timed_action_method
     @base_weartime_docfiller
@@ -156,6 +164,10 @@ class WtdMegaritis_XGBoost(BaseWeartimeDetector):
 
             # Predict
             features_df = pd.DataFrame([features_dict])
+
+            # Reorder columns to match training order
+            features_df = features_df[self.feature_names]
+
             y_pred = self.model.predict(features_df)[0]
             y_prob = self.model.predict_proba(features_df)[:, 1][0]
 
