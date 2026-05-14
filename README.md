@@ -168,13 +168,6 @@ If you use this library in your research, please cite:
 }
 ```
 
-**Validation reference** (manuscript in preparation):
-
-> Megaritis, D. (2026). 
-> Novel wear-time detection algorithms for lower-back worn IMU sensors. *Manuscript in preparation.*
-
-For algorithms from the literature, please cite the original papers listed in the respective algorithm documentation.
-
 ---
 
 ## Compatibility
