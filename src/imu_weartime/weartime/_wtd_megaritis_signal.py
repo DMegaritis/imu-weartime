@@ -20,14 +20,22 @@ import pandas as pd
 from typing_extensions import Self
 
 from mobgap._utils_internal.misc import timed_action_method
-from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, _unify_weartime_df, base_weartime_docfiller
+from imu_weartime.weartime.base_weartime_detector import (
+    BaseWeartimeDetector,
+    _unify_weartime_df,
+    base_weartime_docfiller,
+)
 from imu_weartime.weartime.utils.ml_feature_extraction import (
     extract_features_from_windows,
     remove_short_wear_bouts_by_ratio,
     rolling_window_indices,
 )
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_samples
-from imu_weartime.weartime.utils.windows_to_weartime import remove_isolated_short_periods
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_samples,
+)
+from imu_weartime.weartime.utils.windows_to_weartime import (
+    remove_isolated_short_periods,
+)
 
 
 @base_weartime_docfiller
@@ -213,7 +221,9 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
 
             # --- Process boundary samples (partial macro window at end) ---
             # Calculate where the last complete macro window ended
-            last_complete_macro_end = ((n_samples - window_samples) // step_samples + 1) * step_samples
+            last_complete_macro_end = (
+                (n_samples - window_samples) // step_samples + 1
+            ) * step_samples
 
             if last_complete_macro_end < n_samples:
                 # There are unprocessed boundary samples
@@ -242,7 +252,10 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         # Post-processing Stage 2: Remove short wear bouts (≤20 min) with low contextual ratio
         # Removes suspected device handling events (e.g., 10-min "wear" surrounded by hours of non-wear)
         weartime_flags = remove_short_wear_bouts_by_ratio(
-            weartime_flags, max_bout_minutes=20.0, min_ratio=0.3, sampling_rate_hz=self.sampling_rate_hz
+            weartime_flags,
+            max_bout_minutes=20.0,
+            min_ratio=0.3,
+            sampling_rate_hz=self.sampling_rate_hz,
         )
 
         # Add diagnostic info after loop
@@ -260,14 +273,22 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         self.weartime_list_ = generate_weartime_list_from_samples(weartime_flags)
 
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)
 
-        self.total_weartime_samples_ = (self.weartime_list_["end"] - self.weartime_list_["start"]).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * self.sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * self.sampling_rate_hz
+        )
 
         return self
 
@@ -315,9 +336,15 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         step = int(win_samples_micro * (1 - self.overlap))
 
         features_micro = []
-        for start_micro, end_micro in rolling_window_indices(n_samples_macro, win_samples_micro, step):
+        for start_micro, end_micro in rolling_window_indices(
+            n_samples_macro, win_samples_micro, step
+        ):
             micro_window = macro_window_data.iloc[start_micro:end_micro]
-            features_micro.append(extract_features_from_windows(micro_window, sampling_rate=sampling_rate_hz))
+            features_micro.append(
+                extract_features_from_windows(
+                    micro_window, sampling_rate=sampling_rate_hz
+                )
+            )
 
         # Only proceed if we have micro windows
         if len(features_micro) == 0:
@@ -384,7 +411,18 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
 
         for i in range(n_windows):
             # Check if required features are present (not NaN)
-            if features_df.loc[i, ["gyr_ml_spectral_centroid", "gyr_is_spectral_centroid", "acc_pa_std"]].isna().any():
+            if (
+                features_df.loc[
+                    i,
+                    [
+                        "gyr_ml_spectral_centroid",
+                        "gyr_is_spectral_centroid",
+                        "acc_pa_std",
+                    ],
+                ]
+                .isna()
+                .any()
+            ):
                 # Default to wear if features are missing (conservative)
                 wear_flags[i] = True
                 continue

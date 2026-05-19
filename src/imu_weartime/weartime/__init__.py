@@ -1,4 +1,5 @@
 """Algorithms to detect wear time from raw IMU data."""
+
 from imu_weartime.weartime._wtd_troiano import WtdTroiano
 from imu_weartime.weartime._wtd_choi import WtdChoi
 from imu_weartime.weartime._wtd_vanhees import WtdVanHees
@@ -16,6 +17,21 @@ from imu_weartime.weartime._wtd_megaritis_xgboost import WtdMegaritisXGBoost
 from imu_weartime.weartime._wtd_megaritis_logreg import WtdMegaritisLogReg
 from imu_weartime.weartime._wtd_megaritis_cnn import WtdMegaritisCNN
 
-__all__ = ["WtdTroiano", "WtdChoi", "WtdVanHees", "WtdAhmadi", "WtdZhou", "WtdVert", "WtdKing", "WtdHecht",
-           "WtdRasmussen", "WtdPagnamenta", "WtdDuncan", "WtdNishiyama",
-           "WtdMegaritisCNN", "WtdMegaritisXGBoost", "WtdMegaritisLogReg", "WtdMegaritisCNN"]
+__all__ = [
+    "WtdTroiano",
+    "WtdChoi",
+    "WtdVanHees",
+    "WtdAhmadi",
+    "WtdZhou",
+    "WtdVert",
+    "WtdKing",
+    "WtdHecht",
+    "WtdRasmussen",
+    "WtdPagnamenta",
+    "WtdDuncan",
+    "WtdNishiyama",
+    "WtdMegaritisCNN",
+    "WtdMegaritisXGBoost",
+    "WtdMegaritisLogReg",
+    "WtdMegaritisCNN",
+]

@@ -3,7 +3,9 @@ import numpy as np
 from typing import Any, Unpack, Literal
 from typing_extensions import Self
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_minutes,
+)
 from mobgap.consts import GRAV_MS2
 
 
@@ -38,7 +40,7 @@ class WtdVanHees(BaseWeartimeDetector):
         std_thresh_mg: float = 13.0,
         range_thresh_mg: float = 50.0,
         num_axes_required: int = 2,
-        position: Literal['wrist', 'lowback'] = 'lowback'
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self.window_min = window_min
         self.step_min = step_min
@@ -104,10 +106,12 @@ class WtdVanHees(BaseWeartimeDetector):
         # Border / plausibility rules (single-pass)
         # Here we use a snapshot of the weartime_flags to avoid cascading changes (which might be more robust but is not in the original algorithm)
 
-        df = pd.DataFrame({
-            "wear": weartime_flags,
-            "block": (pd.Series(weartime_flags).diff() != 0).cumsum()
-        })
+        df = pd.DataFrame(
+            {
+                "wear": weartime_flags,
+                "block": (pd.Series(weartime_flags).diff() != 0).cumsum(),
+            }
+        )
 
         blocks = (
             df.groupby("block")
@@ -144,8 +148,16 @@ class WtdVanHees(BaseWeartimeDetector):
             weartime_flags, sampling_rate=int(sampling_rate_hz)
         )
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * self.sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * self.sampling_rate_hz
+        )
         return self

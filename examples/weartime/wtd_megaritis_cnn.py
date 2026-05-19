@@ -59,9 +59,7 @@ def plot_wtd_outputs(data, **kwargs):
 from mobgap.data import LabExampleDataset
 from mobgap.utils.conversions import to_body_frame
 
-example_data = LabExampleDataset(
-    reference_system="INDIP", reference_para_level="wb"
-)
+example_data = LabExampleDataset(reference_system="INDIP", reference_para_level="wb")
 
 # %%
 # Performance on a lab trial

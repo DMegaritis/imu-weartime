@@ -3,13 +3,16 @@ from typing import Any, Unpack, Literal
 import pandas as pd
 import numpy as np
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_samples
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_samples,
+)
 from mobgap.consts import GRAV_MS2
 from mobgap.data_transform import (
     ButterworthFilter,
     Resample,
     chain_transformers,
 )
+
 
 def _fwd_std(x: np.ndarray, window: int) -> pd.Series:
     """Forward-looking rolling standard deviation."""
@@ -58,7 +61,7 @@ class WtdVert(BaseWeartimeDetector):
         temp_inc_roc: float = 0.1,
         acc_sd_thresh_mg: float = 8.0,
         _target_sampling_rate_hz: float = 0.25,
-        position: Literal['wrist', 'lowback'] = 'lowback'
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self.window_min = window_min
         self.low_temperature_cutoff = low_temperature_cutoff
@@ -71,11 +74,11 @@ class WtdVert(BaseWeartimeDetector):
         self.position = position
 
     def detect(
-            self,
-            data: pd.DataFrame,
-            *,
-            sampling_rate_hz: float = 100,
-            **_: Unpack[dict[str, Any]],
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
     ) -> Self:
         self.data = data
         self.sampling_rate_hz = sampling_rate_hz
@@ -94,7 +97,14 @@ class WtdVert(BaseWeartimeDetector):
 
         temp_filt = chain_transformers(
             temp_ds,
-            [("butter", ButterworthFilter(order=2, cutoff_freq_hz=0.005, filter_type="lowpass"))],
+            [
+                (
+                    "butter",
+                    ButterworthFilter(
+                        order=2, cutoff_freq_hz=0.005, filter_type="lowpass"
+                    ),
+                )
+            ],
             sampling_rate_hz=self._target_sampling_rate_hz,
         )
 
@@ -103,22 +113,24 @@ class WtdVert(BaseWeartimeDetector):
         # Acceleration rolling SD (1-min, forward & backward)
         win_acc = int(60 * sampling_rate_hz)
 
-        std_df = pd.DataFrame({
-            "is_fwd": _fwd_std(acc[:, 0], win_acc),
-            "ml_fwd": _fwd_std(acc[:, 1], win_acc),
-            "pa_fwd": _fwd_std(acc[:, 2], win_acc),
-            "is_back": pd.Series(acc[:, 0]).rolling(win_acc).std(),
-            "ml_back": pd.Series(acc[:, 1]).rolling(win_acc).std(),
-            "pa_back": pd.Series(acc[:, 2]).rolling(win_acc).std(),
-        })
+        std_df = pd.DataFrame(
+            {
+                "is_fwd": _fwd_std(acc[:, 0], win_acc),
+                "ml_fwd": _fwd_std(acc[:, 1], win_acc),
+                "pa_fwd": _fwd_std(acc[:, 2], win_acc),
+                "is_back": pd.Series(acc[:, 0]).rolling(win_acc).std(),
+                "ml_back": pd.Series(acc[:, 1]).rolling(win_acc).std(),
+                "pa_back": pd.Series(acc[:, 2]).rolling(win_acc).std(),
+            }
+        )
 
         # Quiet axes count
         std_df["num_axes_fwd"] = (
-                std_df[["is_fwd", "ml_fwd", "pa_fwd"]] < self.acc_sd_thresh_g
+            std_df[["is_fwd", "ml_fwd", "pa_fwd"]] < self.acc_sd_thresh_g
         ).sum(axis=1)
 
         std_df["num_axes_back"] = (
-                std_df[["is_back", "ml_back", "pa_back"]] < self.acc_sd_thresh_g
+            std_df[["is_back", "ml_back", "pa_back"]] < self.acc_sd_thresh_g
         ).sum(axis=1)
 
         # Downsample acc features to temp timebase
@@ -152,14 +164,14 @@ class WtdVert(BaseWeartimeDetector):
             # START non-wear
             if state == 0:
                 start_roc_path = (
-                        temp_roc_5m.iloc[i] <= self.temp_dec_roc
-                        and temp.iloc[i] < self.high_temperature_cutoff
-                        and std_ds.loc[i, "quiet_fwd_5m"] >= 0.9
+                    temp_roc_5m.iloc[i] <= self.temp_dec_roc
+                    and temp.iloc[i] < self.high_temperature_cutoff
+                    and std_ds.loc[i, "quiet_fwd_5m"] >= 0.9
                 )
 
                 start_abs_path = (
-                        temp.iloc[i] < self.low_temperature_cutoff
-                        and std_ds.loc[i, "quiet_fwd_5m"] >= 0.9
+                    temp.iloc[i] < self.low_temperature_cutoff
+                    and std_ds.loc[i, "quiet_fwd_5m"] >= 0.9
                 )
 
                 if start_roc_path or start_abs_path:
@@ -172,7 +184,9 @@ class WtdVert(BaseWeartimeDetector):
                     end_roc_path = temp_roc_5m.iloc[i] >= self.temp_inc_roc
                     end_abs_path = temp.iloc[i] > self.high_temperature_cutoff
 
-                    if (end_roc_path or end_abs_path) and std_ds.loc[i, "quiet_back_5m"] <= 0.5:
+                    if (end_roc_path or end_abs_path) and std_ds.loc[
+                        i, "quiet_back_5m"
+                    ] <= 0.5:
                         state = 0
 
             nw_state[i] = state

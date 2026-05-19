@@ -5,7 +5,9 @@ import pandas as pd
 from scipy.signal import welch
 
 
-def rolling_window_indices(n_samples: int, win_samples: int, step: int) -> tuple[int, int]:
+def rolling_window_indices(
+    n_samples: int, win_samples: int, step: int
+) -> tuple[int, int]:
     """
     Generate rolling window start and end indices.
 
@@ -27,7 +29,9 @@ def rolling_window_indices(n_samples: int, win_samples: int, step: int) -> tuple
         yield start, start + win_samples
 
 
-def extract_features_from_windows(window: pd.DataFrame, sampling_rate: float = 100.0) -> dict:
+def extract_features_from_windows(
+    window: pd.DataFrame, sampling_rate: float = 100.0
+) -> dict:
     """
     Extract features from a window of data.
 
@@ -83,7 +87,10 @@ def extract_features_from_windows(window: pd.DataFrame, sampling_rate: float = 1
 
 
 def remove_short_wear_bouts_by_ratio(  # noqa: C901
-    weartime_flags: np.ndarray, max_bout_minutes: float = 20.0, min_ratio: float = 0.3, sampling_rate_hz: float = 100.0
+    weartime_flags: np.ndarray,
+    max_bout_minutes: float = 20.0,
+    min_ratio: float = 0.3,
+    sampling_rate_hz: float = 100.0,
 ) -> np.ndarray:
     """
     Remove short wear bouts surrounded by disproportionately long non-wear periods.

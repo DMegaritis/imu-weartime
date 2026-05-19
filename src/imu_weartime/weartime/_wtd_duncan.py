@@ -2,11 +2,14 @@ from typing_extensions import Self
 from typing import Any, Unpack, Literal
 import pandas as pd
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_seconds
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_seconds,
+)
 from mobgap.data_transform import (
     Resample,
     chain_transformers,
 )
+
 
 class WtdDuncan(BaseWeartimeDetector):
     """
@@ -49,11 +52,10 @@ class WtdDuncan(BaseWeartimeDetector):
         self,
         *,
         _target_sampling_rate_hz: int = 1,
-        position: Literal['wrist', 'lowback'] = 'lowback'
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self._target_sampling_rate_hz = _target_sampling_rate_hz
         self.position = position
-
 
     def detect(
         self,
@@ -113,9 +115,13 @@ class WtdDuncan(BaseWeartimeDetector):
             wear_hyst, sampling_rate=int(self.sampling_rate_hz)
         )
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=len(self.data))
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=len(self.data)
+        )
         # Summary stats
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
         self.total_weartime_minutes_ = self.total_weartime_samples_ / 60
         self.total_weartime_hours_ = self.total_weartime_samples_ / 3600
 

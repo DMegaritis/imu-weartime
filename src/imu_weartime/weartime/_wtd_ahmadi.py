@@ -3,9 +3,12 @@ from typing import Any, Unpack, Literal
 import pandas as pd
 import numpy as np
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_minutes,
+)
 from mobgap.consts import GRAV_MS2
 from mobgap.data_transform import chain_transformers, ButterworthFilter
+
 
 class WtdAhmadi(BaseWeartimeDetector):
     """
@@ -93,7 +96,7 @@ class WtdAhmadi(BaseWeartimeDetector):
         tilt: float = 1.0,
         sum_hpf_thresh: float = 0.009,
         version: Literal["sd_xyz", "sd_vm", "sum_hpf", "tilt"] = "sd_xyz",
-        position: Literal['wrist', 'lowback'] = 'lowback'
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self.window_min = window_min
         self.std_thresh_mg = std_thresh_mg
@@ -128,25 +131,54 @@ class WtdAhmadi(BaseWeartimeDetector):
             # High-pass filter each axis
             acc_filt = []
             cutoff = 0.25
-            filter_chain = [("butter", ButterworthFilter(order=4, cutoff_freq_hz=cutoff, filter_type='highpass'))]
+            filter_chain = [
+                (
+                    "butter",
+                    ButterworthFilter(
+                        order=4, cutoff_freq_hz=cutoff, filter_type="highpass"
+                    ),
+                )
+            ]
             for col in ["acc_is", "acc_ml", "acc_pa"]:
                 acc_col = data[col].to_numpy() / GRAV_MS2
-                acc_filt.append(chain_transformers(acc_col, filter_chain, sampling_rate_hz=self.sampling_rate_hz))
+                acc_filt.append(
+                    chain_transformers(
+                        acc_col, filter_chain, sampling_rate_hz=self.sampling_rate_hz
+                    )
+                )
             acc = np.stack(acc_filt, axis=1)
 
         elif self.version == "tilt":
             # Tilt: compute angle relative to horizontal for each axis
             acc_arr = data[["acc_is", "acc_ml", "acc_pa"]].to_numpy() / GRAV_MS2
             # arctan(axis / sqrt(sum of squares of other two axes))
-            tilt_x = np.arctan2(acc_arr[:, 0], np.sqrt(acc_arr[:, 1] ** 2 + acc_arr[:, 2] ** 2)) * 180 / np.pi
-            tilt_y = np.arctan2(acc_arr[:, 1], np.sqrt(acc_arr[:, 0] ** 2 + acc_arr[:, 2] ** 2)) * 180 / np.pi
-            tilt_z = np.arctan2(acc_arr[:, 2], np.sqrt(acc_arr[:, 0] ** 2 + acc_arr[:, 1] ** 2)) * 180 / np.pi
+            tilt_x = (
+                np.arctan2(
+                    acc_arr[:, 0], np.sqrt(acc_arr[:, 1] ** 2 + acc_arr[:, 2] ** 2)
+                )
+                * 180
+                / np.pi
+            )
+            tilt_y = (
+                np.arctan2(
+                    acc_arr[:, 1], np.sqrt(acc_arr[:, 0] ** 2 + acc_arr[:, 2] ** 2)
+                )
+                * 180
+                / np.pi
+            )
+            tilt_z = (
+                np.arctan2(
+                    acc_arr[:, 2], np.sqrt(acc_arr[:, 0] ** 2 + acc_arr[:, 1] ** 2)
+                )
+                * 180
+                / np.pi
+            )
             acc = np.stack([tilt_x, tilt_y, tilt_z], axis=1)
 
         # For each version we compute the 1-second flags
         samples_per_sec = int(self.sampling_rate_hz)
         n_secs = len(acc) // samples_per_sec  # full seconds only
-        acc_trim = acc[:n_secs * samples_per_sec]  # trim excess samples at end
+        acc_trim = acc[: n_secs * samples_per_sec]  # trim excess samples at end
 
         # reshape to (n_secs, samples_per_sec, n_axes)
         acc_sec = acc_trim.reshape(n_secs, samples_per_sec, acc.shape[1])
@@ -160,17 +192,21 @@ class WtdAhmadi(BaseWeartimeDetector):
             # Compute vector magnitude per sample, then SD per 1-second window
             vm = np.linalg.norm(acc_sec, axis=2)  # shape: (n_secs, samples_per_sec)
             std_vm = np.std(vm, axis=1)  # shape: (n_secs,)
-            sec_flags = (std_vm < self.std_thresh_g)  # True = non-wear
+            sec_flags = std_vm < self.std_thresh_g  # True = non-wear
 
         elif self.version == "sum_hpf":
             # Sum absolute filtered axes per 1-second window
-            sum_abs = np.sum(np.abs(acc_sec), axis=2)  # shape: (n_secs, samples_per_sec)
-            sec_flags = (sum_abs.max(axis=1) < self.sum_hpf_thresh)  # True = non-wear
+            sum_abs = np.sum(
+                np.abs(acc_sec), axis=2
+            )  # shape: (n_secs, samples_per_sec)
+            sec_flags = sum_abs.max(axis=1) < self.sum_hpf_thresh  # True = non-wear
 
         elif self.version == "tilt":
             # Change in tilt per 1-second window
             delta_tilt = np.diff(acc_sec, axis=1, prepend=acc_sec[:, 0:1, :])
-            sec_flags = (np.abs(delta_tilt).max(axis=1) < self.tilt).all(axis=1)  # True = non-wear
+            sec_flags = (np.abs(delta_tilt).max(axis=1) < self.tilt).all(
+                axis=1
+            )  # True = non-wear
 
         # 30-min windows
         window_secs = self.window_min * 60  # seconds per 30-min block
@@ -178,7 +214,9 @@ class WtdAhmadi(BaseWeartimeDetector):
 
         n_blocks_full = n_seconds // window_secs
         remainder_secs = n_seconds % window_secs  # leftover seconds at the end
-        weartime_blocks = np.ones(n_blocks_full + (1 if remainder_secs > 0 else 0), dtype=int)
+        weartime_blocks = np.ones(
+            n_blocks_full + (1 if remainder_secs > 0 else 0), dtype=int
+        )
 
         for i in range(n_blocks_full):
             start = i * window_secs
@@ -194,10 +232,12 @@ class WtdAhmadi(BaseWeartimeDetector):
                 weartime_blocks[-1] = 0  # mark last block as non-wear
 
         # Plausibility rules on 30-min blocks (single-pass)
-        df = pd.DataFrame({
-            "wear": weartime_blocks,
-            "block": (pd.Series(weartime_blocks).diff() != 0).cumsum()
-        })
+        df = pd.DataFrame(
+            {
+                "wear": weartime_blocks,
+                "block": (pd.Series(weartime_blocks).diff() != 0).cumsum(),
+            }
+        )
         blocks = (
             df.groupby("block")
             .agg(
@@ -213,7 +253,7 @@ class WtdAhmadi(BaseWeartimeDetector):
                 dur = blocks.loc[i, "duration"]
                 adj = blocks.loc[i - 1, "duration"] + blocks.loc[i + 1, "duration"]
                 ratio = dur / adj if adj > 0 else 1.0
-                if (dur <= 30 and ratio < 0.3):
+                if dur <= 30 and ratio < 0.3:
                     s = blocks.loc[i, "period_start"]
                     e = blocks.loc[i, "period_end"]
                     weartime_blocks[s:e] = 0
@@ -228,8 +268,16 @@ class WtdAhmadi(BaseWeartimeDetector):
             weartime_flags, sampling_rate=int(sampling_rate_hz)
         )
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * self.sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * self.sampling_rate_hz
+        )
         return self

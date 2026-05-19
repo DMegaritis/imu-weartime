@@ -1,4 +1,5 @@
 """Tests for WtdMegaritisXGBoost algorithm."""
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -19,7 +20,7 @@ class TestMetaWtdMegaritisXGBoost(TestAlgorithmMixin):
     def after_action_instance(self):
         return self.ALGORITHM_CLASS().detect(
             pd.DataFrame(np.zeros((1000, 6)), columns=BF_SENSOR_COLS),
-            sampling_rate_hz=100.0
+            sampling_rate_hz=100.0,
         )
 
 
@@ -34,20 +35,32 @@ class TestWtdMegaritisXGBoost:
     def test_no_weartime(self):
         """Zero signal should result in no wear-time."""
         data = pd.DataFrame(np.zeros((1000, 6)), columns=BF_SENSOR_COLS)
-        output = WtdMegaritisXGBoost().detect(data, sampling_rate_hz=100.0).weartime_list_
+        output = (
+            WtdMegaritisXGBoost().detect(data, sampling_rate_hz=100.0).weartime_list_
+        )
 
         assert_frame_equal(
             output,
-            pd.DataFrame(columns=["start", "end", "wt_id"]).astype("int64").set_index("wt_id")
+            pd.DataFrame(columns=["start", "end", "wt_id"])
+            .astype("int64")
+            .set_index("wt_id"),
         )
 
     def test_single_weartime_period(self):
         """Test detection of single wear-time period."""
-        data = LabExampleDataset().get_subset(
-            cohort="HA", participant_id="001", test="Test11", trial="Trial1"
-        ).data_ss
+        data = (
+            LabExampleDataset()
+            .get_subset(
+                cohort="HA", participant_id="001", test="Test11", trial="Trial1"
+            )
+            .data_ss
+        )
 
-        output = WtdMegaritisXGBoost().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
+        output = (
+            WtdMegaritisXGBoost()
+            .detect(to_body_frame(data), sampling_rate_hz=100.0)
+            .weartime_list_
+        )
 
         assert len(output) >= 1
         assert set(output.columns) == {"start", "end"}
@@ -55,26 +68,26 @@ class TestWtdMegaritisXGBoost:
     @pytest.mark.parametrize("version", ["full", "lightweight"])
     def test_both_model_versions(self, version):
         """Test that both model versions work correctly."""
-        data = LabExampleDataset().get_subset(
-            cohort="HA", participant_id="001", test="Test5", trial="Trial2"
-        ).data_ss
+        data = (
+            LabExampleDataset()
+            .get_subset(cohort="HA", participant_id="001", test="Test5", trial="Trial2")
+            .data_ss
+        )
 
         output = WtdMegaritisXGBoost(version=version).detect(
-            to_body_frame(data),
-            sampling_rate_hz=100.0
+            to_body_frame(data), sampling_rate_hz=100.0
         )
 
         # Should complete successfully and produce valid output
-        assert hasattr(output, 'weartime_list_')
-        assert hasattr(output, 'model')
+        assert hasattr(output, "weartime_list_")
+        assert hasattr(output, "model")
         assert set(output.weartime_list_.columns) == {"start", "end"}
 
 
 class TestWtdMegaritisXGBoostRegression:
-
     @pytest.mark.parametrize(
         "datapoint",
-        LabExampleDataset(reference_system="INDIP", reference_para_level="wb")
+        LabExampleDataset(reference_system="INDIP", reference_para_level="wb"),
     )
     @pytest.mark.parametrize("version", ["full", "lightweight"])
     def test_example_lab_data(self, datapoint, version, snapshot):
@@ -82,13 +95,13 @@ class TestWtdMegaritisXGBoostRegression:
         data = datapoint.data_ss
         sampling_rate_hz = datapoint.sampling_rate_hz
 
-        weartime_list = WtdMegaritisXGBoost(version=version).detect(
-            to_body_frame(data),
-            sampling_rate_hz=sampling_rate_hz
-        ).weartime_list_
+        weartime_list = (
+            WtdMegaritisXGBoost(version=version)
+            .detect(to_body_frame(data), sampling_rate_hz=sampling_rate_hz)
+            .weartime_list_
+        )
 
         # Include version in snapshot name to separate full vs lightweight results
         snapshot.assert_match(
-            weartime_list,
-            f"{version}_{str(tuple(datapoint.group_label))}"
+            weartime_list, f"{version}_{str(tuple(datapoint.group_label))}"
         )

@@ -5,7 +5,10 @@ from numba import njit
 from typing_extensions import Self
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
 from imu_weartime.weartime.utils.ActivityCounts import ActivityCounts
-from imu_weartime.weartime.utils.weartime_calc import per_minute_counts, generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    per_minute_counts,
+    generate_weartime_list_from_minutes,
+)
 from mobgap.consts import GRAV_MS2
 
 
@@ -37,13 +40,16 @@ class WtdChoi(BaseWeartimeDetector):
         Hutto B, Howard VJ, Blair SN, Colabianchi N, Vena JE, Rhodes D, Hooker SP. Identifying accelerometer nonwear and wear time in older adults. Int J Behav Nutr Phys Act. 2013 Oct 25;10:120. doi: 10.1186/1479-5868-10-120. PMID: 24156309; PMCID: PMC4015851.)
     """
 
-    def __init__(self, *,
-                 window: int = 90,
-                 tol: int = 2,
-                 window2: int = 30,
-                 zero_thresh:float = 1e-6,
-                 position: Literal['wrist', 'lowback'] = 'lowback',
-                 version: Literal['norm', 'vertical']= "vertical") -> None:
+    def __init__(
+        self,
+        *,
+        window: int = 90,
+        tol: int = 2,
+        window2: int = 30,
+        zero_thresh: float = 1e-6,
+        position: Literal["wrist", "lowback"] = "lowback",
+        version: Literal["norm", "vertical"] = "vertical",
+    ) -> None:
         self.data = None
         self.window = window
         self.tol = tol
@@ -52,7 +58,13 @@ class WtdChoi(BaseWeartimeDetector):
         self.position = position
         self.version = version
 
-    def detect(self, data: pd.DataFrame, *, sampling_rate_hz: float = 100, **_: Unpack[dict[str, Any]]) -> Self:
+    def detect(
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
+    ) -> Self:
         """
         Detect wear time periods using Choi et al.'s method.
         """
@@ -68,11 +80,11 @@ class WtdChoi(BaseWeartimeDetector):
                 f"({required_samples} samples), but got {len(data)}"
             )
 
-        if self.version == 'vertical' and self.position == 'lowback':
+        if self.version == "vertical" and self.position == "lowback":
             # Use vertical axis
-            acc = self.data['acc_is'].to_numpy()
-        elif self.version == 'norm' and self.position in ['lowback', 'wrist']:
-            cols = ['acc_is', 'acc_ml', 'acc_pa']
+            acc = self.data["acc_is"].to_numpy()
+        elif self.version == "norm" and self.position in ["lowback", "wrist"]:
+            cols = ["acc_is", "acc_ml", "acc_pa"]
             data_acc = self.data[cols]
             # Signal vector magnitude
             acc = np.linalg.norm(data_acc, axis=1)
@@ -87,7 +99,11 @@ class WtdChoi(BaseWeartimeDetector):
         acc = acc / GRAV_MS2
 
         # Compute activity counts per second
-        activity_counts = ActivityCounts().calculate(data=acc.copy(), sampling_rate=self.sampling_rate_hz).activity_counts_
+        activity_counts = (
+            ActivityCounts()
+            .calculate(data=acc.copy(), sampling_rate=self.sampling_rate_hz)
+            .activity_counts_
+        )
 
         # Convert to per-minute counts
         activity_counts_pm = per_minute_counts(activity_counts)
@@ -156,14 +172,24 @@ class WtdChoi(BaseWeartimeDetector):
                             allowance_end = min(j + tol, candidate_end)
 
                             # Check upstream zeros
-                            upstream_start = max(candidate_start, allowance_start - window2)
-                            upstream_zeros = count_zeros(upstream_start, allowance_start)
-                            upstream_ok = upstream_zeros == (allowance_start - upstream_start)
+                            upstream_start = max(
+                                candidate_start, allowance_start - window2
+                            )
+                            upstream_zeros = count_zeros(
+                                upstream_start, allowance_start
+                            )
+                            upstream_ok = upstream_zeros == (
+                                allowance_start - upstream_start
+                            )
 
                             # Check downstream zeros
                             downstream_end = min(candidate_end, allowance_end + window2)
-                            downstream_zeros = count_zeros(allowance_end, downstream_end)
-                            downstream_ok = downstream_zeros == (downstream_end - allowance_end)
+                            downstream_zeros = count_zeros(
+                                allowance_end, downstream_end
+                            )
+                            downstream_ok = downstream_zeros == (
+                                downstream_end - allowance_end
+                            )
 
                             if upstream_ok and downstream_ok:
                                 # Skip allowance
@@ -187,13 +213,23 @@ class WtdChoi(BaseWeartimeDetector):
             return weartime_flags
 
         # Call the njit function
-        weartime_flags = mark_weartime_numba(zero_flags, window=self.window, tol=self.tol, window2=self.window2)
+        weartime_flags = mark_weartime_numba(
+            zero_flags, window=self.window, tol=self.tol, window2=self.window2
+        )
 
         # Generate list of wear/non-wear intervals
         self.weartime_list_ = generate_weartime_list_from_minutes(weartime_flags)
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * self.sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * self.sampling_rate_hz
+        )
         return self

@@ -58,9 +58,7 @@ def plot_wtd_outputs(data, **kwargs):
 from mobgap.data import LabExampleDataset
 from mobgap.utils.conversions import to_body_frame
 
-example_data = LabExampleDataset(
-    reference_system="INDIP", reference_para_level="wb"
-)
+example_data = LabExampleDataset(reference_system="INDIP", reference_para_level="wb")
 
 # %%
 # Performance on a lab trial
@@ -78,9 +76,7 @@ imu_data = to_body_frame(single_test.data_ss)
 sampling_rate_hz = single_test.sampling_rate_hz
 
 # Apply algorithm
-wtd_output = WtdMegaritisSignal().detect(
-    imu_data, sampling_rate_hz=sampling_rate_hz
-)
+wtd_output = WtdMegaritisSignal().detect(imu_data, sampling_rate_hz=sampling_rate_hz)
 
 print("Detected Wear-Time Periods:\n")
 print(wtd_output.weartime_list_)

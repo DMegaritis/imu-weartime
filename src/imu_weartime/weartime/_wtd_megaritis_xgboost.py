@@ -20,10 +20,19 @@ import pandas as pd
 from typing_extensions import Self
 
 from mobgap._utils_internal.misc import timed_action_method
-from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, _unify_weartime_df, base_weartime_docfiller
-from imu_weartime.weartime.utils.feature_extraction import extract_features_90pct, extract_full_features
+from imu_weartime.weartime.base_weartime_detector import (
+    BaseWeartimeDetector,
+    _unify_weartime_df,
+    base_weartime_docfiller,
+)
+from imu_weartime.weartime.utils.feature_extraction import (
+    extract_features_90pct,
+    extract_full_features,
+)
 from imu_weartime.weartime.utils.ml_feature_extraction import rolling_window_indices
-from imu_weartime.weartime.utils.windows_to_weartime import overlapping_windows_to_sample_labels
+from imu_weartime.weartime.utils.windows_to_weartime import (
+    overlapping_windows_to_sample_labels,
+)
 
 
 @base_weartime_docfiller
@@ -99,13 +108,19 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
 
         # Load models once during initialization
         if self.version == "full":
-            model_file = files('imu_weartime.weartime.production_models').joinpath('xgboost_fullfeatures_lowback_model.pkl')
-            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
-                'xgboost_fullfeatures_lowback_feature_order.pkl')
+            model_file = files("imu_weartime.weartime.production_models").joinpath(
+                "xgboost_fullfeatures_lowback_model.pkl"
+            )
+            feature_order_file = files(
+                "imu_weartime.weartime.production_models"
+            ).joinpath("xgboost_fullfeatures_lowback_feature_order.pkl")
         else:  # lightweight
-            model_file = files('imu_weartime.weartime.production_models').joinpath('xgboost_90pct_lowback_model.pkl')
-            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
-                'xgboost_90pct_lowback_feature_order.pkl')
+            model_file = files("imu_weartime.weartime.production_models").joinpath(
+                "xgboost_90pct_lowback_model.pkl"
+            )
+            feature_order_file = files(
+                "imu_weartime.weartime.production_models"
+            ).joinpath("xgboost_90pct_lowback_feature_order.pkl")
 
         with model_file.open("rb") as f:
             self.model = pickle.load(f)
@@ -115,7 +130,13 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
 
     @timed_action_method
     @base_weartime_docfiller
-    def detect(self, data: pd.DataFrame, *, sampling_rate_hz: float = 100, **_: Unpack[dict[str, Any]]) -> Self:
+    def detect(
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
+    ) -> Self:
         """
         %(detect_short)s using XGBoost classifier with overlapping windows.
 
@@ -157,7 +178,11 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
             win = self.data.iloc[start:end]
 
             # Extract features
-            features_dict = extract_full_features(win) if self.version == "full" else extract_features_90pct(win)
+            features_dict = (
+                extract_full_features(win)
+                if self.version == "full"
+                else extract_features_90pct(win)
+            )
 
             # Predict
             features_df = pd.DataFrame([features_dict])
@@ -172,14 +197,19 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
             all_probabilities.append(y_prob)
 
         # Post-processing: convert window predictions to sample-level weartime
-        self.weartime_list_, total_samples, _total_seconds, total_minutes, total_hours, _coverage = (
-            overlapping_windows_to_sample_labels(
-                predictions=all_predictions,
-                data_len=self.data_length,
-                window_size=win_samples,
-                stride=step,
-                sampling_rate_hz=int(sampling_rate_hz),
-            )
+        (
+            self.weartime_list_,
+            total_samples,
+            _total_seconds,
+            total_minutes,
+            total_hours,
+            _coverage,
+        ) = overlapping_windows_to_sample_labels(
+            predictions=all_predictions,
+            data_len=self.data_length,
+            window_size=win_samples,
+            stride=step,
+            sampling_rate_hz=int(sampling_rate_hz),
         )
 
         # Store statistics
@@ -188,7 +218,9 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
         self.total_weartime_hours_ = total_hours
 
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)

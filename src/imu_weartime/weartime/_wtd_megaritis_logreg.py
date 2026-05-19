@@ -18,12 +18,19 @@ import pickle
 from typing import Any, Unpack, Literal
 from typing_extensions import Self
 from imu_weartime.weartime.utils.ml_feature_extraction import rolling_window_indices
-from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, base_weartime_docfiller, _unify_weartime_df
+from imu_weartime.weartime.base_weartime_detector import (
+    BaseWeartimeDetector,
+    base_weartime_docfiller,
+    _unify_weartime_df,
+)
 from mobgap._utils_internal.misc import timed_action_method
 from imu_weartime.weartime.utils.feature_extraction import (
-    extract_full_features, extract_features_95pct
+    extract_full_features,
+    extract_features_95pct,
 )
-from imu_weartime.weartime.utils.windows_to_weartime import overlapping_windows_to_sample_labels
+from imu_weartime.weartime.utils.windows_to_weartime import (
+    overlapping_windows_to_sample_labels,
+)
 
 
 @base_weartime_docfiller
@@ -91,12 +98,12 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
     scaler: Any
 
     def __init__(
-            self,
-            *,
-            window_sec: float = 5.0,
-            overlap: float = 0.75,
-            version: Literal["full", "lightweight"] = "lightweight",
-            position: Literal['lowback'] = 'lowback'
+        self,
+        *,
+        window_sec: float = 5.0,
+        overlap: float = 0.75,
+        version: Literal["full", "lightweight"] = "lightweight",
+        position: Literal["lowback"] = "lowback",
     ) -> None:
         self.window_sec = window_sec
         self.overlap = overlap
@@ -105,43 +112,43 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
 
         # Load pre-trained Logistic Regression model and scaler
         if self.version == "full":
-            model_file = files('imu_weartime.weartime.production_models').joinpath(
-                'logreg_fullfeatures_lowback_model.pkl'
+            model_file = files("imu_weartime.weartime.production_models").joinpath(
+                "logreg_fullfeatures_lowback_model.pkl"
             )
-            scaler_file = files('imu_weartime.weartime.production_models').joinpath(
-                'logreg_fullfeatures_lowback_scaler.pkl'
+            scaler_file = files("imu_weartime.weartime.production_models").joinpath(
+                "logreg_fullfeatures_lowback_scaler.pkl"
             )
-            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
-                'logreg_fullfeatures_lowback_feature_order.pkl'
-            )
+            feature_order_file = files(
+                "imu_weartime.weartime.production_models"
+            ).joinpath("logreg_fullfeatures_lowback_feature_order.pkl")
         else:  # lightweight (95% features)
-            model_file = files('imu_weartime.weartime.production_models').joinpath(
-                'logreg_95pct_lowback_model.pkl'
+            model_file = files("imu_weartime.weartime.production_models").joinpath(
+                "logreg_95pct_lowback_model.pkl"
             )
-            scaler_file = files('imu_weartime.weartime.production_models').joinpath(
-                'logreg_95pct_lowback_scaler.pkl'
+            scaler_file = files("imu_weartime.weartime.production_models").joinpath(
+                "logreg_95pct_lowback_scaler.pkl"
             )
-            feature_order_file = files('imu_weartime.weartime.production_models').joinpath(
-                'logreg_95pct_lowback_feature_order.pkl'
-            )
+            feature_order_file = files(
+                "imu_weartime.weartime.production_models"
+            ).joinpath("logreg_95pct_lowback_feature_order.pkl")
 
-        with model_file.open('rb') as f:
+        with model_file.open("rb") as f:
             self.model = pickle.load(f)
 
-        with scaler_file.open('rb') as f:
+        with scaler_file.open("rb") as f:
             self.scaler = pickle.load(f)
 
-        with feature_order_file.open('rb') as f:
+        with feature_order_file.open("rb") as f:
             self.feature_names = pickle.load(f)
 
     @timed_action_method
     @base_weartime_docfiller
     def detect(
-            self,
-            data: pd.DataFrame,
-            *,
-            sampling_rate_hz: float = 100,
-            **_: Unpack[dict[str, Any]],
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
     ) -> Self:
         """
         %(detect_short)s using Logistic Regression classifier with overlapping windows.
@@ -211,12 +218,14 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
             all_predictions.append(y_pred)
 
         # Convert window predictions to sample-level weartime with post-processing
-        (self.weartime_list_,
-         self.total_weartime_samples_,
-         total_weartime_seconds,
-         self.total_weartime_minutes_,
-         self.total_weartime_hours_,
-         coverage) = overlapping_windows_to_sample_labels(
+        (
+            self.weartime_list_,
+            self.total_weartime_samples_,
+            total_weartime_seconds,
+            self.total_weartime_minutes_,
+            self.total_weartime_hours_,
+            coverage,
+        ) = overlapping_windows_to_sample_labels(
             predictions=all_predictions,
             data_len=self.data_length,
             window_size=win_samples,
@@ -224,11 +233,13 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
             sampling_rate_hz=int(sampling_rate_hz),
             min_confidence_short_bouts=0.90,
             short_bout_threshold_minutes=20,
-            min_bout_duration_seconds=15
+            min_bout_duration_seconds=15,
         )
 
         # Ensure end indices don't exceed data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)

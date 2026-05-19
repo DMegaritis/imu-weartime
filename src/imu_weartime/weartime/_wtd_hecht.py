@@ -4,7 +4,9 @@ import pandas as pd
 import numpy as np
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
 from imu_weartime.weartime.utils.ActivityCounts import ActivityCounts
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_minutes,
+)
 from imu_weartime.weartime.utils.weartime_calc import per_minute_counts
 from mobgap.consts import GRAV_MS2
 
@@ -55,11 +57,10 @@ class WtdHecht(BaseWeartimeDetector):
         self,
         *,
         low_activity_thresh: float = 1e-6,
-        position: Literal['wrist', 'lowback'] = 'lowback',
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self.low_activity_thresh = low_activity_thresh
         self.position = position
-
 
     def detect(
         self,
@@ -73,7 +74,7 @@ class WtdHecht(BaseWeartimeDetector):
         self.data_length = len(data)
 
         # Step detection based on device version
-        cols = ['acc_is', 'acc_ml', 'acc_pa']
+        cols = ["acc_is", "acc_ml", "acc_pa"]
         data_acc = self.data[cols]
         # Signal vector magnitude
         acc = np.linalg.norm(data_acc, axis=1)
@@ -82,8 +83,11 @@ class WtdHecht(BaseWeartimeDetector):
         acc = acc / GRAV_MS2
 
         # Compute activity counts per second
-        activity_counts = ActivityCounts().calculate(data=acc.copy(),
-                                                     sampling_rate=self.sampling_rate_hz).activity_counts_
+        activity_counts = (
+            ActivityCounts()
+            .calculate(data=acc.copy(), sampling_rate=self.sampling_rate_hz)
+            .activity_counts_
+        )
 
         # Convert to per-minute counts
         activity_counts_pm = per_minute_counts(activity_counts)
@@ -96,8 +100,10 @@ class WtdHecht(BaseWeartimeDetector):
             # Check conditions
             cond1 = vm > self.low_activity_thresh
 
-            prev_window = activity_counts_pm[max(0, i - 20):i]
-            next_window = activity_counts_pm[i + 1:min(len(activity_counts_pm), i + 21)]
+            prev_window = activity_counts_pm[max(0, i - 20) : i]
+            next_window = activity_counts_pm[
+                i + 1 : min(len(activity_counts_pm), i + 21)
+            ]
 
             cond2 = np.sum(next_window > self.low_activity_thresh) >= 2
             cond3 = np.sum(prev_window > self.low_activity_thresh) >= 2
@@ -113,9 +119,17 @@ class WtdHecht(BaseWeartimeDetector):
             wear_mask, sampling_rate=int(sampling_rate_hz)
         )
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * sampling_rate_hz)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * sampling_rate_hz
+        )
 
         return self

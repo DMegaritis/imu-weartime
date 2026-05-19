@@ -1,9 +1,7 @@
 import numpy as np
 import pandas as pd
-from mobgap.data_transform import (
-    chain_transformers,
-    ButterworthFilter
-)
+from mobgap.data_transform import chain_transformers, ButterworthFilter
+
 
 def gravity_motion_butterworth(data: pd.DataFrame, sampling_rate_hz: float):
     """
@@ -47,30 +45,40 @@ def gravity_motion_butterworth(data: pd.DataFrame, sampling_rate_hz: float):
     """
 
     # Ensuring required keys exist in data
-    required_keys = ['acc_is', 'acc_ml', 'acc_pa']
+    required_keys = ["acc_is", "acc_ml", "acc_pa"]
     for key in required_keys:
         if key not in data:
             raise ValueError(f"Missing required key: '{key}' in input data")
 
-    acc_is = data['acc_is'].values
-    acc_ml = data['acc_ml'].values
-    acc_pa = data['acc_pa'].values
+    acc_is = data["acc_is"].values
+    acc_ml = data["acc_ml"].values
+    acc_pa = data["acc_pa"].values
 
     # Performing a low pass butterworth filter on the data
     cutoff = 0.25
     # class instance
-    filter_chain = [("butter", ButterworthFilter(order=1, cutoff_freq_hz=cutoff, filter_type='lowpass'))]
+    filter_chain = [
+        (
+            "butter",
+            ButterworthFilter(order=1, cutoff_freq_hz=cutoff, filter_type="lowpass"),
+        )
+    ]
 
     # application to all corrected axes
-    acc_is_filt = np.asarray(chain_transformers(acc_is, filter_chain, sampling_rate_hz=sampling_rate_hz))
-    acc_ml_filt = np.asarray(chain_transformers(acc_ml, filter_chain, sampling_rate_hz=sampling_rate_hz))
-    acc_pa_filt = np.asarray(chain_transformers(acc_pa, filter_chain, sampling_rate_hz=sampling_rate_hz))
-
+    acc_is_filt = np.asarray(
+        chain_transformers(acc_is, filter_chain, sampling_rate_hz=sampling_rate_hz)
+    )
+    acc_ml_filt = np.asarray(
+        chain_transformers(acc_ml, filter_chain, sampling_rate_hz=sampling_rate_hz)
+    )
+    acc_pa_filt = np.asarray(
+        chain_transformers(acc_pa, filter_chain, sampling_rate_hz=sampling_rate_hz)
+    )
 
     # Compute motion components by subtracting gravity
-    acc_is_no_grav = data['acc_is'] - acc_is_filt
-    acc_ml_no_grav = data['acc_ml'] - acc_ml_filt
-    acc_pa_no_grav = data['acc_pa'] - acc_pa_filt
+    acc_is_no_grav = data["acc_is"] - acc_is_filt
+    acc_ml_no_grav = data["acc_ml"] - acc_ml_filt
+    acc_pa_no_grav = data["acc_pa"] - acc_pa_filt
 
     # concatinate the data
     acc_no_grav = pd.concat([acc_is_no_grav, acc_ml_no_grav, acc_pa_no_grav], axis=1)

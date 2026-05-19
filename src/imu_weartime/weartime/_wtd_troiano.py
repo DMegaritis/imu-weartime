@@ -4,7 +4,10 @@ from typing import Any, Literal
 from typing_extensions import Self, Unpack
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
 from imu_weartime.weartime.utils.ActivityCounts import ActivityCounts
-from imu_weartime.weartime.utils.weartime_calc import per_minute_counts, generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    per_minute_counts,
+    generate_weartime_list_from_minutes,
+)
 from mobgap.consts import GRAV_MS2
 
 
@@ -45,27 +48,30 @@ class WtdTroiano(BaseWeartimeDetector):
     final partial minute are assessed with the same rules as full minutes
     """
 
-    def __init__(self, *,
-                 window: int = 60,
-                 tol: int = 2,
-                 tol_upper: int = 8,
-                 nci: bool = True,
-                 zero_thresh:float = 1e-6,
-                 position: Literal['lowback'] = 'lowback'):
+    def __init__(
+        self,
+        *,
+        window: int = 60,
+        tol: int = 2,
+        tol_upper: int = 8,
+        nci: bool = True,
+        zero_thresh: float = 1e-6,
+        position: Literal["lowback"] = "lowback",
+    ):
         self.data = None
         self.window = window
-        self.tol =tol
+        self.tol = tol
         self.tol_upper = tol_upper
         self.nci = nci
         self.zero_thresh = zero_thresh
         self.position = position
 
     def detect(
-            self,
-            data: pd.DataFrame,
-            *,
-            sampling_rate_hz: float = 100,
-            **_: Unpack[dict[str, Any]]
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
     ) -> Self:
         """
         Detect wear time periods in accelerometer data using Troiano et al.'s method
@@ -93,13 +99,15 @@ class WtdTroiano(BaseWeartimeDetector):
             )
 
         # Use vertical axis
-        acc = self.data['acc_is'].to_numpy()
+        acc = self.data["acc_is"].to_numpy()
         acc = acc / GRAV_MS2  # convert to g-units
 
         # Compute activity counts per second
-        activity_counts = ActivityCounts().calculate(
-            data=acc.copy(), sampling_rate=self.sampling_rate_hz
-        ).activity_counts_
+        activity_counts = (
+            ActivityCounts()
+            .calculate(data=acc.copy(), sampling_rate=self.sampling_rate_hz)
+            .activity_counts_
+        )
 
         # Convert to per-minute counts
         activity_counts_pm = per_minute_counts(activity_counts)
@@ -111,8 +119,13 @@ class WtdTroiano(BaseWeartimeDetector):
         if not self.nci:
             # Sliding window sum logic
             status = np.zeros(n_minutes, dtype=int)
-            status[(activity_counts_pm > self.zero_thresh) & (activity_counts_pm <= self.tol_upper)] = 1 # the minute is non-zero but under the threshold
-            status[activity_counts_pm > self.tol_upper] = self.tol + 1 # the minute is over the threshold
+            status[
+                (activity_counts_pm > self.zero_thresh)
+                & (activity_counts_pm <= self.tol_upper)
+            ] = 1  # the minute is non-zero but under the threshold
+            status[activity_counts_pm > self.tol_upper] = (
+                self.tol + 1
+            )  # the minute is over the threshold
 
             for start in range(n_minutes - self.window + 1):
                 end = start + self.window
@@ -155,8 +168,16 @@ class WtdTroiano(BaseWeartimeDetector):
         # Generate list of wear/non-wear intervals
         self.weartime_list_ = generate_weartime_list_from_minutes(weartime_flags)
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * self.sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * self.sampling_rate_hz
+        )
         return self

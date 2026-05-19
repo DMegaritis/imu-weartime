@@ -4,7 +4,9 @@ import pandas as pd
 import numpy as np
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
 from imu_weartime.weartime.utils.ActivityCounts import ActivityCounts
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_minutes,
+)
 from imu_weartime.weartime.utils.weartime_calc import per_minute_counts
 from mobgap.consts import GRAV_MS2
 
@@ -52,8 +54,8 @@ class WtdNishiyama(BaseWeartimeDetector):
         period_minutes: int = 60,
         wear_prob: float = 0.5,
         cont_zeros: int = 10,
-        zero_thresh:float = 1e-6,
-        position: Literal['wrist', 'lowback'] = 'lowback'
+        zero_thresh: float = 1e-6,
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self.period_minutes = period_minutes
         self.cont_zeros = cont_zeros
@@ -62,18 +64,18 @@ class WtdNishiyama(BaseWeartimeDetector):
         self.position = position
 
     def detect(
-            self,
-            data: pd.DataFrame,
-            *,
-            sampling_rate_hz: float = 100,
-            **_: Unpack[dict[str, Any]],
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
     ) -> Self:
         self.data = data
         self.sampling_rate_hz = sampling_rate_hz
         self.data_length = len(data)
 
         # Calculating norm
-        cols = ['acc_is', 'acc_ml', 'acc_pa']
+        cols = ["acc_is", "acc_ml", "acc_pa"]
         data_acc = self.data[cols]
         # Signal vector magnitude
         acc = np.linalg.norm(data_acc, axis=1)
@@ -82,7 +84,11 @@ class WtdNishiyama(BaseWeartimeDetector):
         acc = acc / GRAV_MS2
 
         # Compute activity counts per second
-        activity_counts = ActivityCounts().calculate(data=acc.copy(), sampling_rate=self.sampling_rate_hz).activity_counts_
+        activity_counts = (
+            ActivityCounts()
+            .calculate(data=acc.copy(), sampling_rate=self.sampling_rate_hz)
+            .activity_counts_
+        )
 
         # Convert to per-minute counts
         activity_counts_pm = per_minute_counts(activity_counts)
@@ -117,7 +123,7 @@ class WtdNishiyama(BaseWeartimeDetector):
                 weartime_flags[t] = 0  # non-wear
 
         # Applying 10 min consecutive 0s check
-        zero_runs = is_active == 0 # zero-count runs
+        zero_runs = is_active == 0  # zero-count runs
         run_length = 0
 
         for t in range(n_minutes):
@@ -126,7 +132,7 @@ class WtdNishiyama(BaseWeartimeDetector):
             else:
                 # short non-wear → restore to wear
                 if 0 < run_length <= self.cont_zeros:
-                    weartime_flags[t - run_length: t] = 1
+                    weartime_flags[t - run_length : t] = 1
                 run_length = 0
 
         # handle run at the end
@@ -138,10 +144,16 @@ class WtdNishiyama(BaseWeartimeDetector):
             weartime_flags, sampling_rate=int(sampling_rate_hz)
         )
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * self.sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * self.sampling_rate_hz
+        )
         return self
-
-

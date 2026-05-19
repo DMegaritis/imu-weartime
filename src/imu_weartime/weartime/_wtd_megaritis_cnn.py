@@ -21,9 +21,15 @@ from tensorflow import keras
 from typing_extensions import Self
 
 from mobgap._utils_internal.misc import timed_action_method
-from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, _unify_weartime_df, base_weartime_docfiller
+from imu_weartime.weartime.base_weartime_detector import (
+    BaseWeartimeDetector,
+    _unify_weartime_df,
+    base_weartime_docfiller,
+)
 from imu_weartime.weartime.utils.ml_feature_extraction import rolling_window_indices
-from imu_weartime.weartime.utils.windows_to_weartime import overlapping_windows_to_sample_labels
+from imu_weartime.weartime.utils.windows_to_weartime import (
+    overlapping_windows_to_sample_labels,
+)
 
 
 @base_weartime_docfiller
@@ -96,9 +102,13 @@ class WtdMegaritisCNN(BaseWeartimeDetector):
 
         # Load model based on version
         if self.version == "cnn":
-            model_file = files('imu_weartime.weartime.production_models').joinpath('cnn_lowback_model.keras')
+            model_file = files("imu_weartime.weartime.production_models").joinpath(
+                "cnn_lowback_model.keras"
+            )
         else:  # cnn_lstm
-            model_file = files('imu_weartime.weartime.production_models').joinpath('cnn_lstm_lowback_model.keras')
+            model_file = files("imu_weartime.weartime.production_models").joinpath(
+                "cnn_lstm_lowback_model.keras"
+            )
 
         self.model = keras.models.load_model(model_file)
 
@@ -112,9 +122,13 @@ class WtdMegaritisCNN(BaseWeartimeDetector):
         """Restore model after unpickling."""
         self.__dict__.update(state)
         if self.version == "cnn":
-            model_file = files('sustain.weartime.production_models').joinpath('cnn_lowback_model.keras')
+            model_file = files("sustain.weartime.production_models").joinpath(
+                "cnn_lowback_model.keras"
+            )
         else:
-            model_file = files('sustain.weartime.production_models').joinpath('cnn_lstm_lowback_model.keras')
+            model_file = files("sustain.weartime.production_models").joinpath(
+                "cnn_lstm_lowback_model.keras"
+            )
         self.model = keras.models.load_model(model_file)
 
     @timed_action_method
@@ -207,7 +221,9 @@ class WtdMegaritisCNN(BaseWeartimeDetector):
         )
 
         # Ensure end indices don't exceed data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)

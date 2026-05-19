@@ -85,7 +85,9 @@ def psd_features(
     features[f"{prefix}_lf_hf_ratio"] = lf_power / hf_power if hf_power > 0 else 0.0
 
     peaks, _ = find_peaks(pxx)
-    peak_freqs = f[peaks][np.argsort(pxx[peaks])[::-1]] if len(peaks) > 0 else np.array([])
+    peak_freqs = (
+        f[peaks][np.argsort(pxx[peaks])[::-1]] if len(peaks) > 0 else np.array([])
+    )
 
     for k, name in enumerate(["dom_freq", "second_peak_freq", "third_peak_freq"]):
         features[f"{prefix}_{name}"] = peak_freqs[k] if len(peak_freqs) > k else 0.0
@@ -93,7 +95,9 @@ def psd_features(
     if total_power > 0:
         psd_norm = pxx / total_power
         features[f"{prefix}_spectral_centroid"] = np.sum(f * psd_norm)
-        features[f"{prefix}_spectral_entropy"] = -np.sum(psd_norm * np.log(psd_norm + 1e-12))
+        features[f"{prefix}_spectral_entropy"] = -np.sum(
+            psd_norm * np.log(psd_norm + 1e-12)
+        )
     else:
         features[f"{prefix}_spectral_centroid"] = 0.0
         features[f"{prefix}_spectral_entropy"] = 0.0
@@ -103,10 +107,14 @@ def psd_features(
 
     valid = (f > 0) & (pxx > 0)
     features[f"{prefix}_spectral_slope"] = (
-        np.polyfit(np.log(f[valid]), np.log(pxx[valid]), 1)[0] if np.sum(valid) > 2 else 0.0
+        np.polyfit(np.log(f[valid]), np.log(pxx[valid]), 1)[0]
+        if np.sum(valid) > 2
+        else 0.0
     )
 
-    features[f"{prefix}_perm_entropy"] = ent.permutation_entropy(x, order=3, normalize=True)
+    features[f"{prefix}_perm_entropy"] = ent.permutation_entropy(
+        x, order=3, normalize=True
+    )
 
     return features
 
@@ -131,16 +139,20 @@ def _add_axis_relation_features(
     axes: Sequence[str],
 ) -> None:
     axis_energy = np.mean(data**2, axis=0)
-    features["axis_dominance_ratio"] = np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    features["axis_dominance_ratio"] = (
+        np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    )
 
     dominant_idx = np.argmax(axis_energy)
-    features["freq_gyr_norm_to_dominant_ratio"] = np.mean(norm) / (np.mean(data[:, dominant_idx]) + 1e-12)
+    features["freq_gyr_norm_to_dominant_ratio"] = np.mean(norm) / (
+        np.mean(data[:, dominant_idx]) + 1e-12
+    )
 
     for i in range(len(axes)):
         for j in range(i + 1, len(axes)):
-            features[f"{axes[i]}_{axes[j]}_psd_ratio"] = np.sum(np.abs(np.fft.rfft(data[:, i]))) / (
-                np.sum(np.abs(np.fft.rfft(data[:, j]))) + 1e-12
-            )
+            features[f"{axes[i]}_{axes[j]}_psd_ratio"] = np.sum(
+                np.abs(np.fft.rfft(data[:, i]))
+            ) / (np.sum(np.abs(np.fft.rfft(data[:, j]))) + 1e-12)
 
 
 def _add_gyr_psd_features(
@@ -629,11 +641,15 @@ def extract_full_features(
         )
 
     features = {}
-    acc_time = _extract_acc_time_domain(df, acc_axes, dt, noise_floor, near_zero_thr, rolling_win)
+    acc_time = _extract_acc_time_domain(
+        df, acc_axes, dt, noise_floor, near_zero_thr, rolling_win
+    )
     features.update(acc_time)
     acc_freq = _extract_acc_frequency_domain(df, acc_axes, fs, lf_band)
     features.update(acc_freq)
-    gyr_time = _extract_gyr_time_domain(df, gyr_axes, dt, noise_floor, near_zero_thr, rolling_win)
+    gyr_time = _extract_gyr_time_domain(
+        df, gyr_axes, dt, noise_floor, near_zero_thr, rolling_win
+    )
     features.update(gyr_time)
     gyr_freq = _extract_gyr_frequency_domain(df, gyr_axes, fs, lf_band)
     features.update(gyr_freq)
@@ -704,9 +720,13 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
     f_is, pxx_is = welch(acc_data[:, 0], fs=fs, nperseg=len(acc_data[:, 0]))
     valid_is = (f_is > 0) & (pxx_is > 0)
     features["acc_is_spectral_slope"] = (
-        np.polyfit(np.log(f_is[valid_is]), np.log(pxx_is[valid_is]), 1)[0] if np.sum(valid_is) > 2 else 0.0
+        np.polyfit(np.log(f_is[valid_is]), np.log(pxx_is[valid_is]), 1)[0]
+        if np.sum(valid_is) > 2
+        else 0.0
     )
-    features["acc_is_perm_entropy"] = ent.permutation_entropy(acc_data[:, 0], order=3, normalize=True)
+    features["acc_is_perm_entropy"] = ent.permutation_entropy(
+        acc_data[:, 0], order=3, normalize=True
+    )
 
     # Accelerometer ML axis
     features["acc_ml_mean"] = np.mean(acc_data[:, 1])
@@ -715,9 +735,13 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
     f_ml, pxx_ml = welch(acc_data[:, 1], fs=fs, nperseg=len(acc_data[:, 1]))
     valid_ml = (f_ml > 0) & (pxx_ml > 0)
     features["acc_ml_spectral_slope"] = (
-        np.polyfit(np.log(f_ml[valid_ml]), np.log(pxx_ml[valid_ml]), 1)[0] if np.sum(valid_ml) > 2 else 0.0
+        np.polyfit(np.log(f_ml[valid_ml]), np.log(pxx_ml[valid_ml]), 1)[0]
+        if np.sum(valid_ml) > 2
+        else 0.0
     )
-    features["acc_ml_perm_entropy"] = ent.permutation_entropy(acc_data[:, 1], order=3, normalize=True)
+    features["acc_ml_perm_entropy"] = ent.permutation_entropy(
+        acc_data[:, 1], order=3, normalize=True
+    )
 
     # Accelerometer PA axis
     features["acc_pa_mean"] = np.mean(acc_data[:, 2])
@@ -737,18 +761,28 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
     peaks_pa, _ = find_peaks(pxx_pa)
     if len(peaks_pa) > 0:
         peak_freqs_pa = f_pa[peaks_pa][np.argsort(pxx_pa[peaks_pa])[::-1]]
-        features["acc_pa_dom_freq"] = peak_freqs_pa[0] if len(peak_freqs_pa) > 0 else 0.0
-        features["acc_pa_second_peak_freq"] = peak_freqs_pa[1] if len(peak_freqs_pa) > 1 else 0.0
-        features["acc_pa_third_peak_freq"] = peak_freqs_pa[2] if len(peak_freqs_pa) > 2 else 0.0
+        features["acc_pa_dom_freq"] = (
+            peak_freqs_pa[0] if len(peak_freqs_pa) > 0 else 0.0
+        )
+        features["acc_pa_second_peak_freq"] = (
+            peak_freqs_pa[1] if len(peak_freqs_pa) > 1 else 0.0
+        )
+        features["acc_pa_third_peak_freq"] = (
+            peak_freqs_pa[2] if len(peak_freqs_pa) > 2 else 0.0
+        )
     else:
         features["acc_pa_dom_freq"] = 0.0
         features["acc_pa_second_peak_freq"] = 0.0
         features["acc_pa_third_peak_freq"] = 0.0
     valid_pa = (f_pa > 0) & (pxx_pa > 0)
     features["acc_pa_spectral_slope"] = (
-        np.polyfit(np.log(f_pa[valid_pa]), np.log(pxx_pa[valid_pa]), 1)[0] if np.sum(valid_pa) > 2 else 0.0
+        np.polyfit(np.log(f_pa[valid_pa]), np.log(pxx_pa[valid_pa]), 1)[0]
+        if np.sum(valid_pa) > 2
+        else 0.0
     )
-    features["acc_pa_perm_entropy"] = ent.permutation_entropy(acc_data[:, 2], order=3, normalize=True)
+    features["acc_pa_perm_entropy"] = ent.permutation_entropy(
+        acc_data[:, 2], order=3, normalize=True
+    )
 
     # Accelerometer norm
     features["acc_norm_mean"] = np.mean(acc_norm)
@@ -764,14 +798,20 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
     peaks_norm, _ = find_peaks(pxx_norm)
     if len(peaks_norm) > 0:
         peak_freqs_norm = f_norm[peaks_norm][np.argsort(pxx_norm[peaks_norm])[::-1]]
-        features["acc_norm_dom_freq"] = peak_freqs_norm[0] if len(peak_freqs_norm) > 0 else 0.0
-        features["acc_norm_second_peak_freq"] = peak_freqs_norm[1] if len(peak_freqs_norm) > 1 else 0.0
+        features["acc_norm_dom_freq"] = (
+            peak_freqs_norm[0] if len(peak_freqs_norm) > 0 else 0.0
+        )
+        features["acc_norm_second_peak_freq"] = (
+            peak_freqs_norm[1] if len(peak_freqs_norm) > 1 else 0.0
+        )
     else:
         features["acc_norm_dom_freq"] = 0.0
         features["acc_norm_second_peak_freq"] = 0.0
     valid_norm = (f_norm > 0) & (pxx_norm > 0)
     features["acc_norm_spectral_slope"] = (
-        np.polyfit(np.log(f_norm[valid_norm]), np.log(pxx_norm[valid_norm]), 1)[0] if np.sum(valid_norm) > 2 else 0.0
+        np.polyfit(np.log(f_norm[valid_norm]), np.log(pxx_norm[valid_norm]), 1)[0]
+        if np.sum(valid_norm) > 2
+        else 0.0
     )
 
     # Accelerometer jerk norm
@@ -781,24 +821,34 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
     features["acc_jerk_std_norm"] = np.std(jerk_acc_norm, ddof=1)
 
     # Gyroscope activity patterns
-    features["burst_count_norm"] = np.sum((gyr_norm[1:-1] > gyr_norm[:-2]) & (gyr_norm[1:-1] > gyr_norm[2:]))
+    features["burst_count_norm"] = np.sum(
+        (gyr_norm[1:-1] > gyr_norm[:-2]) & (gyr_norm[1:-1] > gyr_norm[2:])
+    )
     s_gyr = pd.Series(gyr_norm)
-    features["moving_range_mean_norm"] = s_gyr.diff().abs().rolling(rolling_win, min_periods=rolling_win).mean().mean()
+    features["moving_range_mean_norm"] = (
+        s_gyr.diff().abs().rolling(rolling_win, min_periods=rolling_win).mean().mean()
+    )
 
     # Accelerometer cross-axis features
     dominant_idx_acc = np.argmax(np.mean(acc_data**2, axis=0))
-    features["time_acc_norm_to_dominant_ratio"] = np.mean(acc_norm) / (np.mean(acc_data[:, dominant_idx_acc]) + 1e-12)
-    features["acc_is_acc_ml_energy_ratio"] = np.sum(np.abs(acc_data[:, 0])) / (np.sum(np.abs(acc_data[:, 1])) + 1e-12)
-    features["acc_ml_acc_pa_energy_ratio"] = np.sum(np.abs(acc_data[:, 1])) / (np.sum(np.abs(acc_data[:, 2])) + 1e-12)
-    features["acc_is_acc_ml_psd_ratio"] = np.sum(np.abs(np.fft.rfft(acc_data[:, 0]))) / (
-        np.sum(np.abs(np.fft.rfft(acc_data[:, 1]))) + 1e-12
+    features["time_acc_norm_to_dominant_ratio"] = np.mean(acc_norm) / (
+        np.mean(acc_data[:, dominant_idx_acc]) + 1e-12
     )
-    features["acc_is_acc_pa_psd_ratio"] = np.sum(np.abs(np.fft.rfft(acc_data[:, 0]))) / (
-        np.sum(np.abs(np.fft.rfft(acc_data[:, 2]))) + 1e-12
+    features["acc_is_acc_ml_energy_ratio"] = np.sum(np.abs(acc_data[:, 0])) / (
+        np.sum(np.abs(acc_data[:, 1])) + 1e-12
     )
-    features["acc_ml_acc_pa_psd_ratio"] = np.sum(np.abs(np.fft.rfft(acc_data[:, 1]))) / (
-        np.sum(np.abs(np.fft.rfft(acc_data[:, 2]))) + 1e-12
+    features["acc_ml_acc_pa_energy_ratio"] = np.sum(np.abs(acc_data[:, 1])) / (
+        np.sum(np.abs(acc_data[:, 2])) + 1e-12
     )
+    features["acc_is_acc_ml_psd_ratio"] = np.sum(
+        np.abs(np.fft.rfft(acc_data[:, 0]))
+    ) / (np.sum(np.abs(np.fft.rfft(acc_data[:, 1]))) + 1e-12)
+    features["acc_is_acc_pa_psd_ratio"] = np.sum(
+        np.abs(np.fft.rfft(acc_data[:, 0]))
+    ) / (np.sum(np.abs(np.fft.rfft(acc_data[:, 2]))) + 1e-12)
+    features["acc_ml_acc_pa_psd_ratio"] = np.sum(
+        np.abs(np.fft.rfft(acc_data[:, 1]))
+    ) / (np.sum(np.abs(np.fft.rfft(acc_data[:, 2]))) + 1e-12)
 
     # Gyroscope IS axis
     features["gyr_is_mean"] = np.mean(gyr_data[:, 0])
@@ -818,11 +868,15 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
         features["gyr_is_spectral_centroid"] = 0.0
     valid_gyr_is = (f_gyr_is > 0) & (pxx_gyr_is > 0)
     features["gyr_is_spectral_slope"] = (
-        np.polyfit(np.log(f_gyr_is[valid_gyr_is]), np.log(pxx_gyr_is[valid_gyr_is]), 1)[0]
+        np.polyfit(np.log(f_gyr_is[valid_gyr_is]), np.log(pxx_gyr_is[valid_gyr_is]), 1)[
+            0
+        ]
         if np.sum(valid_gyr_is) > 2
         else 0.0
     )
-    features["gyr_is_perm_entropy"] = ent.permutation_entropy(gyr_data[:, 0], order=3, normalize=True)
+    features["gyr_is_perm_entropy"] = ent.permutation_entropy(
+        gyr_data[:, 0], order=3, normalize=True
+    )
 
     # Gyroscope ML axis
     features["gyr_ml_mean"] = np.mean(gyr_data[:, 1])
@@ -844,13 +898,17 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
         features["gyr_ml_spectral_centroid"] = 0.0
     valid_gyr_ml = (f_gyr_ml > 0) & (pxx_gyr_ml > 0)
     features["gyr_ml_spectral_slope"] = (
-        np.polyfit(np.log(f_gyr_ml[valid_gyr_ml]), np.log(pxx_gyr_ml[valid_gyr_ml]), 1)[0]
+        np.polyfit(np.log(f_gyr_ml[valid_gyr_ml]), np.log(pxx_gyr_ml[valid_gyr_ml]), 1)[
+            0
+        ]
         if np.sum(valid_gyr_ml) > 2
         else 0.0
     )
     peaks_gyr_ml, _ = find_peaks(pxx_gyr_ml)
     if len(peaks_gyr_ml) > 0:
-        peak_freqs_gyr_ml = f_gyr_ml[peaks_gyr_ml][np.argsort(pxx_gyr_ml[peaks_gyr_ml])[::-1]]
+        peak_freqs_gyr_ml = f_gyr_ml[peaks_gyr_ml][
+            np.argsort(pxx_gyr_ml[peaks_gyr_ml])[::-1]
+        ]
         features["gyr_ml_dom_freq"] = peak_freqs_gyr_ml[0]
     else:
         features["gyr_ml_dom_freq"] = 0.0
@@ -866,7 +924,9 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
     total_gyr_pa = np.sum(pxx_gyr_pa)
     if total_gyr_pa > 0:
         psd_gyr_pa_norm = pxx_gyr_pa / total_gyr_pa
-        features["gyr_pa_spectral_entropy"] = -np.sum(psd_gyr_pa_norm * np.log(psd_gyr_pa_norm + 1e-12))
+        features["gyr_pa_spectral_entropy"] = -np.sum(
+            psd_gyr_pa_norm * np.log(psd_gyr_pa_norm + 1e-12)
+        )
     else:
         features["gyr_pa_spectral_entropy"] = 0.0
 
@@ -875,28 +935,42 @@ def extract_features_90pct(  # noqa: PLR0912, PLR0915
     f_gyr_norm, pxx_gyr_norm = welch(gyr_norm, fs=fs, nperseg=len(gyr_norm))
     valid_gyr_norm = (f_gyr_norm > 0) & (pxx_gyr_norm > 0)
     features["gyr_norm_spectral_slope"] = (
-        np.polyfit(np.log(f_gyr_norm[valid_gyr_norm]), np.log(pxx_gyr_norm[valid_gyr_norm]), 1)[0]
+        np.polyfit(
+            np.log(f_gyr_norm[valid_gyr_norm]), np.log(pxx_gyr_norm[valid_gyr_norm]), 1
+        )[0]
         if np.sum(valid_gyr_norm) > 2
         else 0.0
     )
-    features["gyr_norm_perm_entropy"] = ent.permutation_entropy(gyr_norm, order=3, normalize=True)
+    features["gyr_norm_perm_entropy"] = ent.permutation_entropy(
+        gyr_norm, order=3, normalize=True
+    )
 
     # Cross-axis coupling
     axis_energy_gyr = np.mean(gyr_data**2, axis=0)
     features["axis_dominance_ratio"] = (
-        np.max(axis_energy_gyr) / np.sum(axis_energy_gyr) if np.sum(axis_energy_gyr) > 0 else 0.0
+        np.max(axis_energy_gyr) / np.sum(axis_energy_gyr)
+        if np.sum(axis_energy_gyr) > 0
+        else 0.0
     )
     dominant_idx_gyr = np.argmax(axis_energy_gyr)
-    features["time_gyr_norm_to_dominant_ratio"] = np.mean(gyr_norm) / (np.mean(gyr_data[:, dominant_idx_gyr]) + 1e-12)
-    features["gyr_is_gyr_ml_energy_ratio"] = np.sum(np.abs(gyr_data[:, 0])) / (np.sum(np.abs(gyr_data[:, 1])) + 1e-12)
-    features["gyr_is_gyr_pa_energy_ratio"] = np.sum(np.abs(gyr_data[:, 0])) / (np.sum(np.abs(gyr_data[:, 2])) + 1e-12)
-    features["gyr_ml_gyr_pa_energy_ratio"] = np.sum(np.abs(gyr_data[:, 1])) / (np.sum(np.abs(gyr_data[:, 2])) + 1e-12)
-    features["gyr_is_gyr_pa_psd_ratio"] = np.sum(np.abs(np.fft.rfft(gyr_data[:, 0]))) / (
-        np.sum(np.abs(np.fft.rfft(gyr_data[:, 2]))) + 1e-12
+    features["time_gyr_norm_to_dominant_ratio"] = np.mean(gyr_norm) / (
+        np.mean(gyr_data[:, dominant_idx_gyr]) + 1e-12
     )
-    features["gyr_ml_gyr_pa_psd_ratio"] = np.sum(np.abs(np.fft.rfft(gyr_data[:, 1]))) / (
-        np.sum(np.abs(np.fft.rfft(gyr_data[:, 2]))) + 1e-12
+    features["gyr_is_gyr_ml_energy_ratio"] = np.sum(np.abs(gyr_data[:, 0])) / (
+        np.sum(np.abs(gyr_data[:, 1])) + 1e-12
     )
+    features["gyr_is_gyr_pa_energy_ratio"] = np.sum(np.abs(gyr_data[:, 0])) / (
+        np.sum(np.abs(gyr_data[:, 2])) + 1e-12
+    )
+    features["gyr_ml_gyr_pa_energy_ratio"] = np.sum(np.abs(gyr_data[:, 1])) / (
+        np.sum(np.abs(gyr_data[:, 2])) + 1e-12
+    )
+    features["gyr_is_gyr_pa_psd_ratio"] = np.sum(
+        np.abs(np.fft.rfft(gyr_data[:, 0]))
+    ) / (np.sum(np.abs(np.fft.rfft(gyr_data[:, 2]))) + 1e-12)
+    features["gyr_ml_gyr_pa_psd_ratio"] = np.sum(
+        np.abs(np.fft.rfft(gyr_data[:, 1]))
+    ) / (np.sum(np.abs(np.fft.rfft(gyr_data[:, 2]))) + 1e-12)
 
     # Return re ordered
     return _reorder_features(features, FEATURE_ORDER_90PCT)
@@ -946,7 +1020,9 @@ def extract_features_95pct(
             stacklevel=2,
         )
 
-    features = extract_features_90pct(df, acc_axes, gyr_axes, fs, dt, lf_band, rolling_win)
+    features = extract_features_90pct(
+        df, acc_axes, gyr_axes, fs, dt, lf_band, rolling_win
+    )
 
     acc_data = df[list(acc_axes)].to_numpy(dtype=float)
     gyr_data = df[list(gyr_axes)].to_numpy(dtype=float)
@@ -981,11 +1057,15 @@ def extract_features_95pct(
     peaks_norm, _ = find_peaks(pxx_norm)
     if len(peaks_norm) > 0:
         peak_freqs_norm = f_norm[peaks_norm][np.argsort(pxx_norm[peaks_norm])[::-1]]
-        features["acc_norm_third_peak_freq"] = peak_freqs_norm[2] if len(peak_freqs_norm) > 2 else 0.0
+        features["acc_norm_third_peak_freq"] = (
+            peak_freqs_norm[2] if len(peak_freqs_norm) > 2 else 0.0
+        )
     else:
         features["acc_norm_third_peak_freq"] = 0.0
     features["acc_norm_spectral_skewness"] = skew(pxx_norm, bias=False)
-    features["acc_norm_perm_entropy"] = ent.permutation_entropy(acc_norm, order=3, normalize=True)
+    features["acc_norm_perm_entropy"] = ent.permutation_entropy(
+        acc_norm, order=3, normalize=True
+    )
 
     # Additional gyroscope IS features
     features["gyr_is_iqr"] = np.subtract(*np.percentile(gyr_data[:, 0], [75, 25]))
@@ -994,13 +1074,17 @@ def extract_features_95pct(
     features["gyr_ml_std"] = np.std(gyr_data[:, 1], ddof=1)
     features["gyr_ml_rms"] = rms(gyr_data[:, 1])
     features["gyr_ml_kurtosis"] = kurtosis(gyr_data[:, 1], fisher=False, bias=False)
-    features["gyr_ml_perm_entropy"] = ent.permutation_entropy(gyr_data[:, 1], order=3, normalize=True)
+    features["gyr_ml_perm_entropy"] = ent.permutation_entropy(
+        gyr_data[:, 1], order=3, normalize=True
+    )
 
     # Additional gyroscope norm features
     features["gyr_norm_kurtosis"] = kurtosis(gyr_norm, fisher=False, bias=False)
 
     # Additional cross-axis features
-    features["acc_is_acc_pa_energy_ratio"] = np.sum(np.abs(acc_data[:, 0])) / (np.sum(np.abs(acc_data[:, 2])) + 1e-12)
+    features["acc_is_acc_pa_energy_ratio"] = np.sum(np.abs(acc_data[:, 0])) / (
+        np.sum(np.abs(acc_data[:, 2])) + 1e-12
+    )
     features["corr_ml_pa"] = np.corrcoef(gyr_data[:, 1], gyr_data[:, 2])[0, 1]
 
     # Returning re ordered
@@ -1070,29 +1154,45 @@ def _extract_acc_time_domain(  # noqa: PLR0915
 
     near_zero = norm < near_zero_thr
     nz_lengths = consecutive_true_lengths(near_zero)
-    features["median_near_zero_duration_norm"] = np.median(nz_lengths) * dt if len(nz_lengths) else 0.0
-    features["max_near_zero_duration_norm"] = np.max(nz_lengths) * dt if len(nz_lengths) else 0.0
-    features["burst_count_norm"] = np.sum((norm[1:-1] > norm[:-2]) & (norm[1:-1] > norm[2:]))
+    features["median_near_zero_duration_norm"] = (
+        np.median(nz_lengths) * dt if len(nz_lengths) else 0.0
+    )
+    features["max_near_zero_duration_norm"] = (
+        np.max(nz_lengths) * dt if len(nz_lengths) else 0.0
+    )
+    features["burst_count_norm"] = np.sum(
+        (norm[1:-1] > norm[:-2]) & (norm[1:-1] > norm[2:])
+    )
 
     s = pd.Series(norm)
-    features["rolling_var_mean_norm"] = s.rolling(rolling_win, min_periods=rolling_win).var().mean()
-    features["rolling_var_std_norm"] = s.rolling(rolling_win, min_periods=rolling_win).var().std()
-    features["moving_range_mean_norm"] = s.diff().abs().rolling(rolling_win, min_periods=rolling_win).mean().mean()
+    features["rolling_var_mean_norm"] = (
+        s.rolling(rolling_win, min_periods=rolling_win).var().mean()
+    )
+    features["rolling_var_std_norm"] = (
+        s.rolling(rolling_win, min_periods=rolling_win).var().std()
+    )
+    features["moving_range_mean_norm"] = (
+        s.diff().abs().rolling(rolling_win, min_periods=rolling_win).mean().mean()
+    )
 
     features["corr_is_ml"] = np.corrcoef(data[:, 0], data[:, 1])[0, 1]
     features["corr_is_pa"] = np.corrcoef(data[:, 0], data[:, 2])[0, 1]
     features["corr_ml_pa"] = np.corrcoef(data[:, 1], data[:, 2])[0, 1]
 
     axis_energy = np.mean(data**2, axis=0)
-    features["axis_dominance_ratio"] = np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    features["axis_dominance_ratio"] = (
+        np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    )
     dominant_idx = np.argmax(axis_energy)
-    features["time_acc_norm_to_dominant_ratio"] = np.mean(norm) / (np.mean(data[:, dominant_idx]) + 1e-12)
+    features["time_acc_norm_to_dominant_ratio"] = np.mean(norm) / (
+        np.mean(data[:, dominant_idx]) + 1e-12
+    )
 
     for i in range(len(axes)):
         for j in range(i + 1, len(axes)):
-            features[f"{axes[i]}_{axes[j]}_energy_ratio"] = np.sum(np.abs(data[:, i])) / (
-                np.sum(np.abs(data[:, j])) + 1e-12
-            )
+            features[f"{axes[i]}_{axes[j]}_energy_ratio"] = np.sum(
+                np.abs(data[:, i])
+            ) / (np.sum(np.abs(data[:, j])) + 1e-12)
 
     return features
 
@@ -1126,15 +1226,19 @@ def _extract_acc_frequency_domain(
             features[f"{axes[i]}_{axes[j]}_coherence_mean"] = np.mean(cxy)
 
     axis_energy = np.mean(data**2, axis=0)
-    features["axis_dominance_ratio"] = np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    features["axis_dominance_ratio"] = (
+        np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    )
     dominant_idx = np.argmax(axis_energy)
-    features["freq_acc_norm_to_dominant_ratio"] = np.mean(norm) / (np.mean(data[:, dominant_idx]) + 1e-12)
+    features["freq_acc_norm_to_dominant_ratio"] = np.mean(norm) / (
+        np.mean(data[:, dominant_idx]) + 1e-12
+    )
 
     for i in range(len(axes)):
         for j in range(i + 1, len(axes)):
-            features[f"{axes[i]}_{axes[j]}_psd_ratio"] = np.sum(np.abs(np.fft.rfft(data[:, i]))) / (
-                np.sum(np.abs(np.fft.rfft(data[:, j]))) + 1e-12
-            )
+            features[f"{axes[i]}_{axes[j]}_psd_ratio"] = np.sum(
+                np.abs(np.fft.rfft(data[:, i]))
+            ) / (np.sum(np.abs(np.fft.rfft(data[:, j]))) + 1e-12)
 
     return features
 
@@ -1194,27 +1298,39 @@ def _extract_gyr_time_domain(
 
     near_zero = norm < near_zero_thr
     nz_lengths = consecutive_true_lengths(near_zero)
-    features["median_near_zero_duration_norm"] = np.median(nz_lengths) * dt if len(nz_lengths) else 0.0
-    features["burst_count_norm"] = np.sum((norm[1:-1] > norm[:-2]) & (norm[1:-1] > norm[2:]))
+    features["median_near_zero_duration_norm"] = (
+        np.median(nz_lengths) * dt if len(nz_lengths) else 0.0
+    )
+    features["burst_count_norm"] = np.sum(
+        (norm[1:-1] > norm[:-2]) & (norm[1:-1] > norm[2:])
+    )
 
     s = pd.Series(norm)
-    features["rolling_var_mean_norm"] = s.rolling(rolling_win, min_periods=rolling_win).var().mean()
-    features["moving_range_mean_norm"] = s.diff().abs().rolling(rolling_win, min_periods=rolling_win).mean().mean()
+    features["rolling_var_mean_norm"] = (
+        s.rolling(rolling_win, min_periods=rolling_win).var().mean()
+    )
+    features["moving_range_mean_norm"] = (
+        s.diff().abs().rolling(rolling_win, min_periods=rolling_win).mean().mean()
+    )
 
     features["corr_is_ml"] = np.corrcoef(data[:, 0], data[:, 1])[0, 1]
     features["corr_is_pa"] = np.corrcoef(data[:, 0], data[:, 2])[0, 1]
     features["corr_ml_pa"] = np.corrcoef(data[:, 1], data[:, 2])[0, 1]
 
     axis_energy = np.mean(data**2, axis=0)
-    features["axis_dominance_ratio"] = np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    features["axis_dominance_ratio"] = (
+        np.max(axis_energy) / np.sum(axis_energy) if np.sum(axis_energy) > 0 else 0.0
+    )
     dominant_idx = np.argmax(axis_energy)
-    features["time_gyr_norm_to_dominant_ratio"] = np.mean(norm) / (np.mean(data[:, dominant_idx]) + 1e-12)
+    features["time_gyr_norm_to_dominant_ratio"] = np.mean(norm) / (
+        np.mean(data[:, dominant_idx]) + 1e-12
+    )
 
     for i in range(len(axes)):
         for j in range(i + 1, len(axes)):
-            features[f"{axes[i]}_{axes[j]}_energy_ratio"] = np.sum(np.abs(data[:, i])) / (
-                np.sum(np.abs(data[:, j])) + 1e-12
-            )
+            features[f"{axes[i]}_{axes[j]}_energy_ratio"] = np.sum(
+                np.abs(data[:, i])
+            ) / (np.sum(np.abs(data[:, j])) + 1e-12)
 
     return features
 

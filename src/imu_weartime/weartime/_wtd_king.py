@@ -2,7 +2,9 @@ from typing_extensions import Self
 from typing import Any, Unpack, Literal
 import pandas as pd
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_minutes,
+)
 from multigait.ICD.ICD4 import ZijlstraIC
 
 
@@ -42,12 +44,11 @@ class WtdKing(BaseWeartimeDetector):
     def __init__(
         self,
         *,
-        position: Literal['wrist', 'lowback'] = 'lowback',
-        period_minutes: Literal[60, 90, 120, 150] = 120
+        position: Literal["wrist", "lowback"] = "lowback",
+        period_minutes: Literal[60, 90, 120, 150] = 120,
     ) -> None:
         self.period_minutes = period_minutes
         self.position = position
-
 
     def detect(
         self,
@@ -62,9 +63,17 @@ class WtdKing(BaseWeartimeDetector):
 
         # Step detection based on device version
         if self.position == "lowback":
-            ics = ZijlstraIC(version="original_lowback").detect(self.data, sampling_rate_hz=self.sampling_rate_hz).ic_list_
+            ics = (
+                ZijlstraIC(version="original_lowback")
+                .detect(self.data, sampling_rate_hz=self.sampling_rate_hz)
+                .ic_list_
+            )
         elif self.position == "wrist":
-            ics = ZijlstraIC(version="wrist").detect(self.data, sampling_rate_hz=self.sampling_rate_hz).ic_list_
+            ics = (
+                ZijlstraIC(version="wrist")
+                .detect(self.data, sampling_rate_hz=self.sampling_rate_hz)
+                .ic_list_
+            )
 
         # Convert sample indices to seconds and then to minute bins
         ics["time_sec"] = ics["ic"] / self.sampling_rate_hz
@@ -75,7 +84,10 @@ class WtdKing(BaseWeartimeDetector):
             ics.groupby("minute")
             .size()
             .rename("steps")
-            .reindex(pd.RangeIndex(ics["minute"].min(), ics["minute"].max() + 1), fill_value=0)
+            .reindex(
+                pd.RangeIndex(ics["minute"].min(), ics["minute"].max() + 1),
+                fill_value=0,
+            )
             .rename_axis("minute")
             .reset_index()
         )
@@ -85,25 +97,39 @@ class WtdKing(BaseWeartimeDetector):
         steps_per_minute["inactive"] = steps_per_minute["steps"] == 0
 
         # Label consecutive groups
-        steps_per_minute["group"] = (steps_per_minute["inactive"] != steps_per_minute["inactive"].shift()).cumsum()
+        steps_per_minute["group"] = (
+            steps_per_minute["inactive"] != steps_per_minute["inactive"].shift()
+        ).cumsum()
 
         # Group sizes
-        steps_per_minute["group_size"] = steps_per_minute.groupby("group")["inactive"].transform("size")
+        steps_per_minute["group_size"] = steps_per_minute.groupby("group")[
+            "inactive"
+        ].transform("size")
 
         # Vectorized non-wear flag per minute: 1 = wear, 0 = non-wear
-        weartime_flags = (~(
-            steps_per_minute["inactive"] &
-            (steps_per_minute["group_size"] >= self.period_minutes)
-        )).astype(int)
+        weartime_flags = (
+            ~(
+                steps_per_minute["inactive"]
+                & (steps_per_minute["group_size"] >= self.period_minutes)
+            )
+        ).astype(int)
 
         # Generate wear time list scaled to sample indices
         self.weartime_list_ = generate_weartime_list_from_minutes(
             weartime_flags.to_numpy(), sampling_rate=int(sampling_rate_hz)
         )
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * sampling_rate_hz)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+            upper=self.data_length
+        )
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * sampling_rate_hz
+        )
 
         return self

@@ -3,13 +3,16 @@ from typing import Any, Unpack, Literal
 import pandas as pd
 import numpy as np
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_minutes
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_minutes,
+)
 from mobgap.consts import GRAV_MS2
 from scipy.signal import savgol_filter
 from mobgap.data_transform import (
     Resample,
     chain_transformers,
 )
+
 
 class WtdPagnamenta(BaseWeartimeDetector):
     """
@@ -94,8 +97,8 @@ class WtdPagnamenta(BaseWeartimeDetector):
         temp_thresh_derivative: float = 0.02,
         temp_thresh_windows: float = 3.0,
         low_activity_thresh_mg: float = 13,
-        _target_sampling_rate_hz: float = 100/6,
-        position: Literal['wrist', 'lowback'] = 'lowback'
+        _target_sampling_rate_hz: float = 100 / 6,
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self.version = version
         self.low_activity_thresh_mg = low_activity_thresh_mg
@@ -104,7 +107,6 @@ class WtdPagnamenta(BaseWeartimeDetector):
         self.temp_thresh_windows = temp_thresh_windows
         self._target_sampling_rate_hz = _target_sampling_rate_hz
         self.position = position
-
 
     def detect(
         self,
@@ -126,14 +128,20 @@ class WtdPagnamenta(BaseWeartimeDetector):
         )
 
         # Using scipy directly for now
-        window_length = int(15 * self._target_sampling_rate_hz) // 2 * 2 + 1  # ensure odd
+        window_length = (
+            int(15 * self._target_sampling_rate_hz) // 2 * 2 + 1
+        )  # ensure odd
         polyorder = 2
-        temp_filt = savgol_filter(temp_ds, window_length=window_length, polyorder=polyorder, mode="mirror")
+        temp_filt = savgol_filter(
+            temp_ds, window_length=window_length, polyorder=polyorder, mode="mirror"
+        )
 
         temp = pd.Series(temp_filt).reset_index(drop=True)
 
         # Temperature derivative (°C per second)
-        temp_derivative = np.gradient(temp.to_numpy(), 1 / self._target_sampling_rate_hz)
+        temp_derivative = np.gradient(
+            temp.to_numpy(), 1 / self._target_sampling_rate_hz
+        )
 
         # Calculate peaks of derivative as abs > 0.02
         peak_idx = np.where(np.abs(temp_derivative) > self.temp_thresh_derivative)[0]
@@ -203,9 +211,13 @@ class WtdPagnamenta(BaseWeartimeDetector):
             # Handle the first period
             first_peak = valid_peaks[0]
             if first_peak["sign"] > 0:  # end of non-wear
-                periods.append({"start": 0, "end": first_peak["index"], "state": "non-wear"})
+                periods.append(
+                    {"start": 0, "end": first_peak["index"], "state": "non-wear"}
+                )
             elif first_peak["sign"] < 0:  # start of non-wear
-                periods.append({"start": 0, "end": first_peak["index"], "state": "wear"})
+                periods.append(
+                    {"start": 0, "end": first_peak["index"], "state": "wear"}
+                )
 
             # Handle intermediate periods
             for i in range(len(valid_peaks) - 1):
@@ -214,21 +226,31 @@ class WtdPagnamenta(BaseWeartimeDetector):
 
                 # Current state
                 state = "non-wear" if current_peak["sign"] < 0 else "wear"
-                periods.append({"start": current_peak["index"], "end": next_peak["index"], "state": state})
+                periods.append(
+                    {
+                        "start": current_peak["index"],
+                        "end": next_peak["index"],
+                        "state": state,
+                    }
+                )
 
             # Handle the last period
             last_peak = valid_peaks[-1]
             state = "non-wear" if last_peak["sign"] < 0 else "wear"
-            periods.append({"start": last_peak["index"], "end": len(temp), "state": state})
+            periods.append(
+                {"start": last_peak["index"], "end": len(temp), "state": state}
+            )
 
         # Convert to series for easier mapping
         wear_series = pd.Series("wear", index=range(len(temp)))  # default wear
         for p in periods:
-            wear_series[p["start"]:p["end"]] = p["state"]
+            wear_series[p["start"] : p["end"]] = p["state"]
 
         # Back to original sampling rate
         factor = int(round(self.sampling_rate_hz / self._target_sampling_rate_hz))
-        wear_series_orig = wear_series.repeat(factor).iloc[: self.data_length].reset_index(drop=True)
+        wear_series_orig = (
+            wear_series.repeat(factor).iloc[: self.data_length].reset_index(drop=True)
+        )
 
         s = wear_series_orig
 
@@ -243,10 +265,7 @@ class WtdPagnamenta(BaseWeartimeDetector):
         wear_segments = (
             s[is_wear]
             .groupby(segment_id[is_wear])
-            .apply(lambda x: pd.Series({
-                "start": x.index[0],
-                "end": x.index[-1] + 1
-            }))
+            .apply(lambda x: pd.Series({"start": x.index[0], "end": x.index[-1] + 1}))
         )
 
         # Add wt_id index
@@ -258,15 +277,23 @@ class WtdPagnamenta(BaseWeartimeDetector):
         if self.version == "temp":
             self.weartime_list_ = wear_segments
             # Clip end to actual data length
-            self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-            self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-            self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * sampling_rate_hz)
-            self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * sampling_rate_hz)
+            self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+                upper=self.data_length
+            )
+            self.total_weartime_samples_ = (
+                self.weartime_list_["end"] - self.weartime_list_["start"]
+            ).sum()
+            self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+                60 * sampling_rate_hz
+            )
+            self.total_weartime_hours_ = self.total_weartime_samples_ / (
+                3600 * sampling_rate_hz
+            )
             return self
 
         if self.version == "temp_acc":
             # Calculating norm
-            cols = ['acc_is', 'acc_ml', 'acc_pa']
+            cols = ["acc_is", "acc_ml", "acc_pa"]
             data_acc = self.data[cols]
             # Signal vector magnitude
             acc = np.linalg.norm(data_acc, axis=1)
@@ -275,19 +302,22 @@ class WtdPagnamenta(BaseWeartimeDetector):
             acc = acc / GRAV_MS2
 
             samples_per_min = int(60 * self.sampling_rate_hz)
-            vm_minute_sd = pd.Series(acc).groupby(np.arange(len(acc)) // samples_per_min).std()
+            vm_minute_sd = (
+                pd.Series(acc).groupby(np.arange(len(acc)) // samples_per_min).std()
+            )
 
             # Comparing with thresh
-            acc_non_wear_candidate = vm_minute_sd < self.low_activity_thresh # 1 when quiet (indicating non wear)
+            acc_non_wear_candidate = (
+                vm_minute_sd < self.low_activity_thresh
+            )  # 1 when quiet (indicating non wear)
 
             # Temperature rules to minutes for comparison
             samples_per_min = int(60 * self.sampling_rate_hz)
 
             temp_non_wear_min = (
-                    s.eq("non-wear")
-                    .groupby(np.arange(len(s)) // samples_per_min)
-                    .mean() > 0.5
-            ) # 1 when non-wear
+                s.eq("non-wear").groupby(np.arange(len(s)) // samples_per_min).mean()
+                > 0.5
+            )  # 1 when non-wear
 
             combined_non_wear_min = acc_non_wear_candidate & temp_non_wear_min
             combined_wear_min = (~combined_non_wear_min).astype(int).to_numpy()
@@ -297,8 +327,16 @@ class WtdPagnamenta(BaseWeartimeDetector):
                 combined_wear_min, sampling_rate=int(self.sampling_rate_hz)
             )
             # Clip end to actual data length
-            self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
-            self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-            self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
-            self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+            self.weartime_list_["end"] = self.weartime_list_["end"].clip(
+                upper=self.data_length
+            )
+            self.total_weartime_samples_ = (
+                self.weartime_list_["end"] - self.weartime_list_["start"]
+            ).sum()
+            self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+                60 * self.sampling_rate_hz
+            )
+            self.total_weartime_hours_ = self.total_weartime_samples_ / (
+                3600 * self.sampling_rate_hz
+            )
             return self

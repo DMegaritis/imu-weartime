@@ -4,8 +4,11 @@ import pandas as pd
 import numpy as np
 from scipy.ndimage import uniform_filter1d
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
-from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_seconds
+from imu_weartime.weartime.utils.weartime_calc import (
+    generate_weartime_list_from_seconds,
+)
 from mobgap.consts import GRAV_MS2
+
 
 class WtdZhou(BaseWeartimeDetector):
     """
@@ -93,7 +96,7 @@ class WtdZhou(BaseWeartimeDetector):
         window_min: int = 1,
         t0: float = 26.0,
         acc_sd_thresh_mg: float = 13.0,
-        position: Literal['wrist', 'lowback'] = 'lowback'
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
         self.version = version
         self.window_min = window_min
@@ -103,11 +106,11 @@ class WtdZhou(BaseWeartimeDetector):
         self.position = position
 
     def detect(
-            self,
-            data: pd.DataFrame,
-            *,
-            sampling_rate_hz: float = 100,
-            **_: Unpack[dict[str, Any]],
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
     ) -> Self:
         self.data = data
         self.sampling_rate_hz = sampling_rate_hz
@@ -115,7 +118,9 @@ class WtdZhou(BaseWeartimeDetector):
 
         # Temperature preprocessing
         if "temperature" not in data.columns:
-            raise ValueError("Temperature column ('temperature') is required for WtdZhou.")
+            raise ValueError(
+                "Temperature column ('temperature') is required for WtdZhou."
+            )
 
         temp = data["temperature"].to_numpy()
 
@@ -123,9 +128,7 @@ class WtdZhou(BaseWeartimeDetector):
 
         # Moving average smoothing (1-min window, 1-s step)
         temp_smooth = uniform_filter1d(
-            temp.astype(float),
-            size=window_samples,
-            mode="nearest"
+            temp.astype(float), size=window_samples, mode="nearest"
         )
 
         # Acceleration preprocessing (CTA only)
@@ -219,7 +222,13 @@ class WtdZhou(BaseWeartimeDetector):
             upper=self.data_length
         )
 
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * sampling_rate_hz)
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * sampling_rate_hz)
+        self.total_weartime_samples_ = (
+            self.weartime_list_["end"] - self.weartime_list_["start"]
+        ).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
+            60 * sampling_rate_hz
+        )
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (
+            3600 * sampling_rate_hz
+        )
         return self

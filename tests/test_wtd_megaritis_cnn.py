@@ -1,4 +1,5 @@
 """Tests for WtdMegaritisCNN algorithm."""
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -20,7 +21,7 @@ class TestMetaWtdMegaritisCNN(TestAlgorithmMixin):
         # Use random data to avoid edge cases
         return self.ALGORITHM_CLASS().detect(
             pd.DataFrame(np.random.randn(1000, 6), columns=BF_SENSOR_COLS),
-            sampling_rate_hz=100.0
+            sampling_rate_hz=100.0,
         )
 
 
@@ -39,16 +40,24 @@ class TestWtdMegaritisCNN:
 
         assert_frame_equal(
             output,
-            pd.DataFrame(columns=["start", "end", "wt_id"]).astype("int64").set_index("wt_id")
+            pd.DataFrame(columns=["start", "end", "wt_id"])
+            .astype("int64")
+            .set_index("wt_id"),
         )
 
     def test_single_weartime_period(self):
         """Test detection on a single trial."""
-        data = LabExampleDataset().get_subset(
-            cohort="HA", participant_id="001", test="Test5", trial="Trial2"
-        ).data_ss
+        data = (
+            LabExampleDataset()
+            .get_subset(cohort="HA", participant_id="001", test="Test5", trial="Trial2")
+            .data_ss
+        )
 
-        output = WtdMegaritisCNN().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
+        output = (
+            WtdMegaritisCNN()
+            .detect(to_body_frame(data), sampling_rate_hz=100.0)
+            .weartime_list_
+        )
 
         # Verify output structure (model may detect zero wear-time on short trials)
         assert set(output.columns) == {"start", "end"}
@@ -57,26 +66,26 @@ class TestWtdMegaritisCNN:
     @pytest.mark.parametrize("version", ["cnn", "cnn_lstm"])
     def test_both_model_versions(self, version):
         """Test that both model architectures work correctly."""
-        data = LabExampleDataset().get_subset(
-            cohort="HA", participant_id="001", test="Test5", trial="Trial2"
-        ).data_ss
+        data = (
+            LabExampleDataset()
+            .get_subset(cohort="HA", participant_id="001", test="Test5", trial="Trial2")
+            .data_ss
+        )
 
         output = WtdMegaritisCNN(version=version).detect(
-            to_body_frame(data),
-            sampling_rate_hz=100.0
+            to_body_frame(data), sampling_rate_hz=100.0
         )
 
         # Should complete successfully and produce valid output
-        assert hasattr(output, 'weartime_list_')
-        assert hasattr(output, 'model')
+        assert hasattr(output, "weartime_list_")
+        assert hasattr(output, "model")
         assert set(output.weartime_list_.columns) == {"start", "end"}
 
 
 class TestWtdMegaritisCNNRegression:
-
     @pytest.mark.parametrize(
         "datapoint",
-        LabExampleDataset(reference_system="INDIP", reference_para_level="wb")
+        LabExampleDataset(reference_system="INDIP", reference_para_level="wb"),
     )
     @pytest.mark.parametrize("version", ["cnn", "cnn_lstm"])
     def test_example_lab_data(self, datapoint, version, snapshot):
@@ -84,13 +93,13 @@ class TestWtdMegaritisCNNRegression:
         data = datapoint.data_ss
         sampling_rate_hz = datapoint.sampling_rate_hz
 
-        weartime_list = WtdMegaritisCNN(version=version).detect(
-            to_body_frame(data),
-            sampling_rate_hz=sampling_rate_hz
-        ).weartime_list_
+        weartime_list = (
+            WtdMegaritisCNN(version=version)
+            .detect(to_body_frame(data), sampling_rate_hz=sampling_rate_hz)
+            .weartime_list_
+        )
 
         # Include version in snapshot name to separate cnn vs cnn_lstm results
         snapshot.assert_match(
-            weartime_list,
-            f"{version}_{str(tuple(datapoint.group_label))}"
+            weartime_list, f"{version}_{str(tuple(datapoint.group_label))}"
         )
