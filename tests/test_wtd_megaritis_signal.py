@@ -7,12 +7,12 @@ from tpcp.testing import TestAlgorithmMixin
 from mobgap.consts import BF_SENSOR_COLS
 from mobgap.data import LabExampleDataset
 from mobgap.utils.conversions import to_body_frame
-from imu_weartime.weartime import Wtd_Megaritis_signal
+from imu_weartime.weartime import WtdMegaritisSignal
 
 
 class TestMetaWtdMegaritisSignal(TestAlgorithmMixin):
     __test__ = True
-    ALGORITHM_CLASS = Wtd_Megaritis_signal
+    ALGORITHM_CLASS = WtdMegaritisSignal
 
     @pytest.fixture
     def after_action_instance(self):
@@ -23,7 +23,7 @@ class TestMetaWtdMegaritisSignal(TestAlgorithmMixin):
 
 
 class TestWtdMegaritisSignal:
-    """Tests for Wtd_Megaritis_signal.
+    """Tests for WtdMegaritisSignal.
 
     Note: We don't test the influence of any single parameter here.
     We just test the happy path and some potential edge cases.
@@ -32,7 +32,7 @@ class TestWtdMegaritisSignal:
 
     def test_no_weartime(self):
         data = pd.DataFrame(np.zeros((1000, 6)), columns=BF_SENSOR_COLS)
-        output = Wtd_Megaritis_signal().detect(data, sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisSignal().detect(data, sampling_rate_hz=100.0).weartime_list_
 
         assert_frame_equal(
             output,
@@ -44,7 +44,7 @@ class TestWtdMegaritisSignal:
             cohort="HA", participant_id="001", test="Test5", trial="Trial2"
         ).data_ss
 
-        output = Wtd_Megaritis_signal().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisSignal().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
 
         assert len(output) >= 1
         assert set(output.columns) == {"start", "end"}
@@ -60,7 +60,7 @@ class TestWtdMegaritisSignalRegression:
         data = datapoint.data_ss
         sampling_rate_hz = datapoint.sampling_rate_hz
 
-        weartime_list = Wtd_Megaritis_signal().detect(
+        weartime_list = WtdMegaritisSignal().detect(
             to_body_frame(data),
             sampling_rate_hz=sampling_rate_hz
         ).weartime_list_
