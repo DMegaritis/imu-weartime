@@ -69,7 +69,7 @@ example_data = LabExampleDataset(
 # Below we apply both CNN variants to a trial containing activities of daily living.
 # Note: This is controlled lab data where the sensor was worn for the entire recording,
 # so we expect the algorithm to detect close to 100%% wear-time.
-from imu_weartime.weartime import WtdMegaritis_CNN
+from imu_weartime.weartime import WtdMegaritisCNN
 
 single_test = example_data.get_subset(
     cohort="HA", participant_id="001", test="Test11", trial="Trial1"
@@ -91,7 +91,7 @@ for version in ["cnn", "cnn_lstm"]:
     print(f"{'=' * 60}\n")
 
     # Apply algorithm
-    wtd_output = WtdMegaritis_CNN(version=version).detect(
+    wtd_output = WtdMegaritisCNN(version=version).detect(
         imu_data, sampling_rate_hz=sampling_rate_hz
     )
 

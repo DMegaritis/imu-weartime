@@ -27,7 +27,7 @@ from imu_weartime.weartime.utils.windows_to_weartime import overlapping_windows_
 
 
 @base_weartime_docfiller
-class WtdMegaritis_LogReg(BaseWeartimeDetector):
+class WtdMegaritisLogReg(BaseWeartimeDetector):
     """
     Logistic Regression-based wear-time detection for lower-back worn IMU sensors.
 

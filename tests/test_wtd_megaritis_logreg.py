@@ -1,4 +1,4 @@
-"""Tests for WtdMegaritis_LogReg algorithm."""
+"""Tests for WtdMegaritisLogReg algorithm."""
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,12 +8,12 @@ from tpcp.testing import TestAlgorithmMixin
 from mobgap.consts import BF_SENSOR_COLS
 from mobgap.data import LabExampleDataset
 from mobgap.utils.conversions import to_body_frame
-from imu_weartime.weartime import WtdMegaritis_LogReg
+from imu_weartime.weartime import WtdMegaritisLogReg
 
 
 class TestMetaWtdMegaritisLogReg(TestAlgorithmMixin):
     __test__ = True
-    ALGORITHM_CLASS = WtdMegaritis_LogReg
+    ALGORITHM_CLASS = WtdMegaritisLogReg
 
     @pytest.fixture
     def after_action_instance(self):
@@ -24,7 +24,7 @@ class TestMetaWtdMegaritisLogReg(TestAlgorithmMixin):
         )
 
 class TestWtdMegaritisLogReg:
-    """Tests for WtdMegaritis_LogReg.
+    """Tests for WtdMegaritisLogReg.
 
     Note: We don't test the influence of any single parameter here.
     We just test the happy path and some potential edge cases.
@@ -34,7 +34,7 @@ class TestWtdMegaritisLogReg:
     def test_no_weartime(self):
         """Zero signal should result in no wear-time."""
         data = pd.DataFrame(np.zeros((1000, 6)), columns=BF_SENSOR_COLS)
-        output = WtdMegaritis_LogReg().detect(data, sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisLogReg().detect(data, sampling_rate_hz=100.0).weartime_list_
 
         assert_frame_equal(
             output,
@@ -47,7 +47,7 @@ class TestWtdMegaritisLogReg:
             cohort="HA", participant_id="001", test="Test11", trial="Trial1"
         ).data_ss
 
-        output = WtdMegaritis_LogReg().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisLogReg().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
 
         # Verify output structure (model may detect zero wear-time on short trials)
         assert set(output.columns) == {"start", "end"}
@@ -60,7 +60,7 @@ class TestWtdMegaritisLogReg:
             cohort="HA", participant_id="001", test="Test5", trial="Trial2"
         ).data_ss
 
-        output = WtdMegaritis_LogReg(version=version).detect(
+        output = WtdMegaritisLogReg(version=version).detect(
             to_body_frame(data),
             sampling_rate_hz=100.0
         )
@@ -84,7 +84,7 @@ class TestWtdMegaritisLogRegRegression:
         data = datapoint.data_ss
         sampling_rate_hz = datapoint.sampling_rate_hz
 
-        weartime_list = WtdMegaritis_LogReg(version=version).detect(
+        weartime_list = WtdMegaritisLogReg(version=version).detect(
             to_body_frame(data),
             sampling_rate_hz=sampling_rate_hz
         ).weartime_list_

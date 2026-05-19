@@ -13,71 +13,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pandas as pd
+from typing import Any, Literal, Unpack
+
 import numpy as np
-from typing import Any, Unpack, Literal
+import pandas as pd
 from typing_extensions import Self
-from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, base_weartime_docfiller, _unify_weartime_df
+
 from mobgap._utils_internal.misc import timed_action_method
+from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, _unify_weartime_df, base_weartime_docfiller
+from imu_weartime.weartime.utils.ml_feature_extraction import (
+    extract_features_from_windows,
+    remove_short_wear_bouts_by_ratio,
+    rolling_window_indices,
+)
 from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_samples
-from imu_weartime.weartime.utils.ml_feature_extraction import rolling_window_indices, extract_features_from_windows, \
-    remove_short_wear_bouts_by_ratio
 from imu_weartime.weartime.utils.windows_to_weartime import remove_isolated_short_periods
 
 
 @base_weartime_docfiller
-class Wtd_Megaritis_signal(BaseWeartimeDetector):
+class WtdMegaritisSignal(BaseWeartimeDetector):
     """
-    Novel signal processing wear-time detection algorithm based on gyroscope rotational patterns
-    and accelerometer movement variability.
+    Novel signal processing wear-time detection algorithm.
 
-    Core principle:
-    - Gyroscopes detect angular (rotational) movement during true wear-time
-    - Natural body movements show characteristic low-frequency rotational patterns (<15-17 Hz)
-    - Movement variability (acc_pa_std) captures continuous micro-movements during wear
-    - Discriminates wear from non-wear independently of activity intensity
-
-    Algorithm workflow:
-    1. Sliding macro windows are defined over the input data
-    2. Each macro window is divided into micro windows (5s) for feature extraction
-    3. Three features are extracted per micro window:
-       - gyr_ml_spectral_centroid: frequency content of mediolateral rotation
-       - gyr_is_spectral_centroid: frequency content of vertical axis rotation
-       - acc_pa_std: variability of anteroposterior acceleration
-    4. Each micro window is classified as wear/non-wear based on thresholds using 2-out-of-3 voting
-    5. Macro-level decision: aggregated from micro-window classifications via probability threshold
-    6. Per-sample votes accumulated from overlapping macro windows
-    7. Final wear/non-wear flag determined by vote majority per sample
-    8. Post-processing (two-stage):
-       a) Remove isolated periods shorter than 15 seconds (sensor noise, voting conflicts)
-       b) Remove short wear bouts (≤20 min) surrounded by disproportionate non-wear (ratio <0.3)
-
-    Features:
-    - gyr_ml_spectral_centroid: Spectral centroid of ML gyroscope (Hz)
-      Measures frequency content of mediolateral (side-to-side) rotational movements.
-      Natural body rotations during wear show low-frequency patterns (<16-18 Hz).
-
-    - gyr_is_spectral_centroid: Spectral centroid of IS gyroscope (Hz)
-      Measures frequency content of inferior-superior (vertical axis) rotational movements.
-      Natural turning/rolling movements during wear show low-frequency patterns (<16-18 Hz).
-
-    - acc_pa_std: Standard deviation of PA acceleration
-      Measures variability of anteroposterior (forward-backward) acceleration.
-      Continuous low-level variability (>0.15-0.20) indicates wear, even during rest/sleep.
-
-    Decision logic:
-    - Micro-level: Voting system (default) - at least 2 out of 3 features must meet wear criteria
-    - Macro-level: If ≥prob_thresh (default 0.4) of micro windows are non-wear, macro is non-wear
-    - Sample-level: Majority vote across overlapping macro windows
-    - Post-processing: Two-stage artifact removal
-
-    Rationale for post-processing:
-    Stage 1 (15-second filter): Device attachment/removal requires minimum physical time.
-    Brief isolated periods are artifacts from sensor noise or voting conflicts.
-
-    Stage 2 (20-minute ratio filter): Short wear bouts surrounded by much longer non-wear
-    (ratio <0.3) are likely device handling or brief disturbances rather than true wear events.
-    Example: 10-min wear surrounded by 40+ min non-wear suggests handling, not wearing.
+    The algorithm uses gyroscopes to detect angular (rotational) movement during true wear-time.
+    Natural body movements show characteristic low-frequency rotational patterns (<15-17 Hz).
+    Movement variability captures continuous micro-movements during wear, discriminating wear
+    from non-wear independently of activity intensity.
 
     Parameters
     ----------
@@ -117,6 +78,27 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
     %(perf_)s
     diagnostics_ : dict
         Diagnostic information with 'macro' and 'sample_votes' keys
+
+    Notes
+    -----
+    Algorithm workflow:
+
+    1. Sliding macro windows are defined over the input data
+    2. Each macro window is divided into micro windows (5s) for feature extraction
+    3. Three features are extracted per micro window:
+       gyr_ml_spectral_centroid (frequency of mediolateral rotation),
+       gyr_is_spectral_centroid (frequency of vertical rotation),
+       acc_pa_std (variability of anteroposterior acceleration)
+    4. Each micro window is classified using 2-out-of-3 voting
+    5. Macro-level decision via probability threshold (default 0.4)
+    6. Per-sample votes accumulated from overlapping macro windows
+    7. Final wear/non-wear determined by vote majority
+    8. Two-stage post-processing removes artifacts
+
+    Post-processing rationale: Stage 1 (15-second filter) removes brief isolated periods
+    from sensor noise or voting conflicts. Stage 2 (20-minute ratio filter) removes short
+    wear bouts surrounded by disproportionate non-wear (ratio <0.3), likely device handling
+    rather than true wear events.
     """
 
     # Type hints
@@ -124,21 +106,20 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
     diagnostics_: dict[str, pd.DataFrame | list]
 
     def __init__(
-            self,
-            *,
-            window_min: int = 60,
-            step_min: int = 15,
-            window_size: int = 5,
-            overlap: float = 0.5,
-            prob_thresh: float = 0.4,
-            gyr_ml_centroid_thresh_hz: float = 16.0,
-            gyr_is_centroid_thresh_hz: float = 18.0,
-            acc_pa_std_thresh: float = 0.17,
-            voting_mode: bool = True,
-            min_features_required: int = 2,
-            position: Literal['wrist', 'lowback'] = 'lowback'
+        self,
+        *,
+        window_min: int = 60,
+        step_min: int = 15,
+        window_size: int = 5,
+        overlap: float = 0.5,
+        prob_thresh: float = 0.4,
+        gyr_ml_centroid_thresh_hz: float = 16.0,
+        gyr_is_centroid_thresh_hz: float = 18.0,
+        acc_pa_std_thresh: float = 0.17,
+        voting_mode: bool = True,
+        min_features_required: int = 2,
+        position: Literal["wrist", "lowback"] = "lowback",
     ) -> None:
-
         self.window_min = window_min
         self.step_min = step_min
         self.window_size = window_size
@@ -154,11 +135,11 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
     @timed_action_method
     @base_weartime_docfiller
     def detect(
-            self,
-            data: pd.DataFrame,
-            *,
-            sampling_rate_hz: float = 100,
-            **_: Unpack[dict[str, Any]],
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float = 100,
+        **_: Unpack[dict[str, Any]],
     ) -> Self:
         """
         %(detect_short)s using multi-level voting on gyroscope and accelerometer features.
@@ -213,7 +194,7 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
                 non_wear_votes=non_wear_votes,
                 sampling_rate_hz=sampling_rate_hz,
                 is_boundary=True,
-                is_short_recording=True
+                is_short_recording=True,
             )
         else:
             # --- Normal processing: Sliding macro windows ---
@@ -227,7 +208,7 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
                     wear_votes=wear_votes,
                     non_wear_votes=non_wear_votes,
                     sampling_rate_hz=sampling_rate_hz,
-                    is_boundary=False
+                    is_boundary=False,
                 )
 
             # --- Process boundary samples (partial macro window at end) ---
@@ -246,7 +227,7 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
                     wear_votes=wear_votes,
                     non_wear_votes=non_wear_votes,
                     sampling_rate_hz=sampling_rate_hz,
-                    is_boundary=True
+                    is_boundary=True,
                 )
 
         # --- FINAL decision per sample ---
@@ -255,28 +236,25 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
         # Post-processing Stage 1: Remove very brief isolated periods (<15 seconds)
         # Removes sensor noise, voting edge effects, and transient artifacts
         weartime_flags = remove_isolated_short_periods(
-            weartime_flags,
-            min_period_sec=15.0,
-            sampling_rate_hz=self.sampling_rate_hz
+            weartime_flags, min_period_sec=15.0, sampling_rate_hz=self.sampling_rate_hz
         )
 
         # Post-processing Stage 2: Remove short wear bouts (≤20 min) with low contextual ratio
         # Removes suspected device handling events (e.g., 10-min "wear" surrounded by hours of non-wear)
         weartime_flags = remove_short_wear_bouts_by_ratio(
-            weartime_flags,
-            max_bout_minutes=20.0,
-            min_ratio=0.3,
-            sampling_rate_hz=self.sampling_rate_hz
+            weartime_flags, max_bout_minutes=20.0, min_ratio=0.3, sampling_rate_hz=self.sampling_rate_hz
         )
 
         # Add diagnostic info after loop
         self.diagnostics_["macro"] = pd.DataFrame(self.diagnostics_["macro"])
-        self.diagnostics_["sample_votes"] = pd.DataFrame({
-            "wear_votes": wear_votes,
-            "non_wear_votes": non_wear_votes,
-            "vote_margin": wear_votes - non_wear_votes,
-            "final_flag": weartime_flags,
-        })
+        self.diagnostics_["sample_votes"] = pd.DataFrame(
+            {
+                "wear_votes": wear_votes,
+                "non_wear_votes": non_wear_votes,
+                "vote_margin": wear_votes - non_wear_votes,
+                "final_flag": weartime_flags,
+            }
+        )
 
         # Output formatting (per sample converted to weartime list)
         self.weartime_list_ = generate_weartime_list_from_samples(weartime_flags)
@@ -287,22 +265,22 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)
 
-        self.total_weartime_samples_ = (self.weartime_list_['end'] - self.weartime_list_['start']).sum()
+        self.total_weartime_samples_ = (self.weartime_list_["end"] - self.weartime_list_["start"]).sum()
         self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
         self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
 
         return self
 
     def _process_macro_window(
-            self,
-            data: pd.DataFrame,
-            start_idx: int,
-            end_idx: int,
-            wear_votes: np.ndarray,
-            non_wear_votes: np.ndarray,
-            sampling_rate_hz: float,
-            is_boundary: bool = False,
-            is_short_recording: bool = False
+        self,
+        data: pd.DataFrame,
+        start_idx: int,
+        end_idx: int,
+        wear_votes: np.ndarray,
+        non_wear_votes: np.ndarray,
+        sampling_rate_hz: float,
+        is_boundary: bool = False,
+        is_short_recording: bool = False,
     ) -> None:
         """
         Process a single macro window (complete or partial) and accumulate sample-level votes.
@@ -337,13 +315,9 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
         step = int(win_samples_micro * (1 - self.overlap))
 
         features_micro = []
-        for start_micro, end_micro in rolling_window_indices(
-                n_samples_macro, win_samples_micro, step
-        ):
+        for start_micro, end_micro in rolling_window_indices(n_samples_macro, win_samples_micro, step):
             micro_window = macro_window_data.iloc[start_micro:end_micro]
-            features_micro.append(
-                extract_features_from_windows(micro_window, sampling_rate=sampling_rate_hz)
-            )
+            features_micro.append(extract_features_from_windows(micro_window, sampling_rate=sampling_rate_hz))
 
         # Only proceed if we have micro windows
         if len(features_micro) == 0:
@@ -367,18 +341,20 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
 
         # Diagnostic info for this macro window
         macro_score = micro_non_wear.mean()
-        self.diagnostics_["macro"].append({
-            "start": start_idx,
-            "end": end_idx,
-            "macro_score": macro_score,
-            "macro_non_wear": macro_non_wear,
-            "n_micro_windows": len(micro_non_wear),
-            "micro_non_wear_rate": macro_score,
-            "n_wear": micro_wear_flags.sum(),
-            "n_non_wear": micro_non_wear.sum(),
-            "is_boundary_window": is_boundary,
-            "is_short_recording": is_short_recording
-        })
+        self.diagnostics_["macro"].append(
+            {
+                "start": start_idx,
+                "end": end_idx,
+                "macro_score": macro_score,
+                "macro_non_wear": macro_non_wear,
+                "n_micro_windows": len(micro_non_wear),
+                "micro_non_wear_rate": macro_score,
+                "n_wear": micro_wear_flags.sum(),
+                "n_non_wear": micro_non_wear.sum(),
+                "is_boundary_window": is_boundary,
+                "is_short_recording": is_short_recording,
+            }
+        )
 
     def _classify_micro_windows(self, features_df: pd.DataFrame) -> np.ndarray:
         """
@@ -408,15 +384,15 @@ class Wtd_Megaritis_signal(BaseWeartimeDetector):
 
         for i in range(n_windows):
             # Check if required features are present (not NaN)
-            if features_df.loc[i, ['gyr_ml_spectral_centroid', 'gyr_is_spectral_centroid', 'acc_pa_std']].isna().any():
+            if features_df.loc[i, ["gyr_ml_spectral_centroid", "gyr_is_spectral_centroid", "acc_pa_std"]].isna().any():
                 # Default to wear if features are missing (conservative)
                 wear_flags[i] = True
                 continue
 
             # Extract feature values
-            gyr_ml_centroid = features_df.loc[i, 'gyr_ml_spectral_centroid']
-            gyr_is_centroid = features_df.loc[i, 'gyr_is_spectral_centroid']
-            acc_pa_std = features_df.loc[i, 'acc_pa_std']
+            gyr_ml_centroid = features_df.loc[i, "gyr_ml_spectral_centroid"]
+            gyr_is_centroid = features_df.loc[i, "gyr_is_spectral_centroid"]
+            acc_pa_std = features_df.loc[i, "acc_pa_std"]
 
             # Sanity check: Handle theoretical all-zero feature case
             # When signal is all zeros, spectral centroids = 0 and acc_pa_std = 0.

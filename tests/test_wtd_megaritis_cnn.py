@@ -1,4 +1,4 @@
-"""Tests for WtdMegaritis_CNN algorithm."""
+"""Tests for WtdMegaritisCNN algorithm."""
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,12 +8,12 @@ from tpcp.testing import TestAlgorithmMixin
 from mobgap.consts import BF_SENSOR_COLS
 from mobgap.data import LabExampleDataset
 from mobgap.utils.conversions import to_body_frame
-from imu_weartime.weartime import WtdMegaritis_CNN
+from imu_weartime.weartime import WtdMegaritisCNN
 
 
-class TestMetaWtdMegaritis_CNN(TestAlgorithmMixin):
+class TestMetaWtdMegaritisCNN(TestAlgorithmMixin):
     __test__ = True
-    ALGORITHM_CLASS = WtdMegaritis_CNN
+    ALGORITHM_CLASS = WtdMegaritisCNN
 
     @pytest.fixture
     def after_action_instance(self):
@@ -24,8 +24,8 @@ class TestMetaWtdMegaritis_CNN(TestAlgorithmMixin):
         )
 
 
-class TestWtdMegaritis_CNN:
-    """Tests for WtdMegaritis_CNN.
+class TestWtdMegaritisCNN:
+    """Tests for WtdMegaritisCNN.
 
     Note: We don't test the influence of any single parameter here.
     We just test the happy path and some potential edge cases.
@@ -35,7 +35,7 @@ class TestWtdMegaritis_CNN:
     def test_no_weartime(self):
         """Zero signal should result in no wear-time."""
         data = pd.DataFrame(np.zeros((1000, 6)), columns=BF_SENSOR_COLS)
-        output = WtdMegaritis_CNN().detect(data, sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisCNN().detect(data, sampling_rate_hz=100.0).weartime_list_
 
         assert_frame_equal(
             output,
@@ -48,7 +48,7 @@ class TestWtdMegaritis_CNN:
             cohort="HA", participant_id="001", test="Test5", trial="Trial2"
         ).data_ss
 
-        output = WtdMegaritis_CNN().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisCNN().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
 
         # Verify output structure (model may detect zero wear-time on short trials)
         assert set(output.columns) == {"start", "end"}
@@ -61,7 +61,7 @@ class TestWtdMegaritis_CNN:
             cohort="HA", participant_id="001", test="Test5", trial="Trial2"
         ).data_ss
 
-        output = WtdMegaritis_CNN(version=version).detect(
+        output = WtdMegaritisCNN(version=version).detect(
             to_body_frame(data),
             sampling_rate_hz=100.0
         )
@@ -72,7 +72,7 @@ class TestWtdMegaritis_CNN:
         assert set(output.weartime_list_.columns) == {"start", "end"}
 
 
-class TestWtdMegaritis_CNNRegression:
+class TestWtdMegaritisCNNRegression:
 
     @pytest.mark.parametrize(
         "datapoint",
@@ -84,7 +84,7 @@ class TestWtdMegaritis_CNNRegression:
         data = datapoint.data_ss
         sampling_rate_hz = datapoint.sampling_rate_hz
 
-        weartime_list = WtdMegaritis_CNN(version=version).detect(
+        weartime_list = WtdMegaritisCNN(version=version).detect(
             to_body_frame(data),
             sampling_rate_hz=sampling_rate_hz
         ).weartime_list_

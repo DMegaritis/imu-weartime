@@ -69,7 +69,7 @@ example_data = LabExampleDataset(
 # Below we apply the algorithm to a trial containing activities of daily living.
 # Note: This is controlled lab data where the sensor was worn for the entire recording,
 # so we expect the algorithm to detect close to 100%% wear-time.
-from imu_weartime.weartime import WtdMegaritis_LogReg
+from imu_weartime.weartime import WtdMegaritisLogReg
 
 single_test = example_data.get_subset(
     cohort="HA", participant_id="002", test="Test11", trial="Trial1"
@@ -79,7 +79,7 @@ imu_data = to_body_frame(single_test.data_ss)
 sampling_rate_hz = single_test.sampling_rate_hz
 
 # Apply algorithm
-wtd_output = WtdMegaritis_LogReg().detect(
+wtd_output = WtdMegaritisLogReg().detect(
     imu_data, sampling_rate_hz=sampling_rate_hz
 )
 

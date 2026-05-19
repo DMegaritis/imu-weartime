@@ -11,11 +11,11 @@ from imu_weartime.weartime._wtd_hecht import WtdHecht
 from imu_weartime.weartime._wtd_rasmussen import WtdRasmussen
 from imu_weartime.weartime._wtd_pagnamenta import WtdPagnamenta
 from imu_weartime.weartime._wtd_duncan import WtdDuncan
-from imu_weartime.weartime._wtd_megaritis_signal import Wtd_Megaritis_signal
-from imu_weartime.weartime._wtd_megaritis_xgboost import WtdMegaritis_XGBoost
-from imu_weartime.weartime._wtd_megaritis_logreg import WtdMegaritis_LogReg
-from imu_weartime.weartime._wtd_megaritis_cnn import WtdMegaritis_CNN
+from imu_weartime.weartime._wtd_megaritis_signal import WtdMegaritisSignal
+from imu_weartime.weartime._wtd_megaritis_xgboost import WtdMegaritisXGBoost
+from imu_weartime.weartime._wtd_megaritis_logreg import WtdMegaritisLogReg
+from imu_weartime.weartime._wtd_megaritis_cnn import WtdMegaritisCNN
 
 __all__ = ["WtdTroiano", "WtdChoi", "WtdVanHees", "WtdAhmadi", "WtdZhou", "WtdVert", "WtdKing", "WtdHecht",
            "WtdRasmussen", "WtdPagnamenta", "WtdDuncan", "WtdNishiyama",
-           "Wtd_Megaritis_signal", "WtdMegaritis_XGBoost", "WtdMegaritis_LogReg", "WtdMegaritis_CNN"]
+           "WtdMegaritisCNN", "WtdMegaritisXGBoost", "WtdMegaritisLogReg", "WtdMegaritisCNN"]
