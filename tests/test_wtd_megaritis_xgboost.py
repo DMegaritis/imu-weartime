@@ -1,4 +1,4 @@
-"""Tests for WtdMegaritis_XGBoost algorithm."""
+"""Tests for WtdMegaritisXGBoost algorithm."""
 import numpy as np
 import pandas as pd
 import pytest
@@ -8,12 +8,12 @@ from tpcp.testing import TestAlgorithmMixin
 from mobgap.consts import BF_SENSOR_COLS
 from mobgap.data import LabExampleDataset
 from mobgap.utils.conversions import to_body_frame
-from imu_weartime.weartime import WtdMegaritis_XGBoost
+from imu_weartime.weartime import WtdMegaritisXGBoost
 
 
 class TestMetaWtdMegaritisXGBoost(TestAlgorithmMixin):
     __test__ = True
-    ALGORITHM_CLASS = WtdMegaritis_XGBoost
+    ALGORITHM_CLASS = WtdMegaritisXGBoost
 
     @pytest.fixture
     def after_action_instance(self):
@@ -24,7 +24,7 @@ class TestMetaWtdMegaritisXGBoost(TestAlgorithmMixin):
 
 
 class TestWtdMegaritisXGBoost:
-    """Tests for WtdMegaritis_XGBoost.
+    """Tests for WtdMegaritisXGBoost.
 
     Note: We don't test the influence of any single parameter here.
     We just test the happy path and some potential edge cases.
@@ -34,7 +34,7 @@ class TestWtdMegaritisXGBoost:
     def test_no_weartime(self):
         """Zero signal should result in no wear-time."""
         data = pd.DataFrame(np.zeros((1000, 6)), columns=BF_SENSOR_COLS)
-        output = WtdMegaritis_XGBoost().detect(data, sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisXGBoost().detect(data, sampling_rate_hz=100.0).weartime_list_
 
         assert_frame_equal(
             output,
@@ -47,7 +47,7 @@ class TestWtdMegaritisXGBoost:
             cohort="HA", participant_id="001", test="Test11", trial="Trial1"
         ).data_ss
 
-        output = WtdMegaritis_XGBoost().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
+        output = WtdMegaritisXGBoost().detect(to_body_frame(data), sampling_rate_hz=100.0).weartime_list_
 
         assert len(output) >= 1
         assert set(output.columns) == {"start", "end"}
@@ -59,7 +59,7 @@ class TestWtdMegaritisXGBoost:
             cohort="HA", participant_id="001", test="Test5", trial="Trial2"
         ).data_ss
 
-        output = WtdMegaritis_XGBoost(version=version).detect(
+        output = WtdMegaritisXGBoost(version=version).detect(
             to_body_frame(data),
             sampling_rate_hz=100.0
         )
@@ -82,7 +82,7 @@ class TestWtdMegaritisXGBoostRegression:
         data = datapoint.data_ss
         sampling_rate_hz = datapoint.sampling_rate_hz
 
-        weartime_list = WtdMegaritis_XGBoost(version=version).detect(
+        weartime_list = WtdMegaritisXGBoost(version=version).detect(
             to_body_frame(data),
             sampling_rate_hz=sampling_rate_hz
         ).weartime_list_
