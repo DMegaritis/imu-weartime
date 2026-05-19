@@ -115,9 +115,6 @@ class WtdChoi(BaseWeartimeDetector):
         # Create binary array
         zero_flags = (activity_counts_pm <= self.zero_thresh).astype(int)
 
-        # Precomputing cumulative sum once
-        cumsum = np.cumsum(zero_flags)
-
         @njit()
         def mark_weartime_numba(zero_flags, window=90, tol=2, window2=30):
             """

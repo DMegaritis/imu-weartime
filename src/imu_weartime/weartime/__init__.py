@@ -30,6 +30,7 @@ __all__ = [
     "WtdPagnamenta",
     "WtdDuncan",
     "WtdNishiyama",
+    "WtdMegaritisSignal",
     "WtdMegaritisCNN",
     "WtdMegaritisXGBoost",
     "WtdMegaritisLogReg",
