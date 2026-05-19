@@ -63,6 +63,8 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
         Pre-trained Logistic Regression model loaded during initialization
     scaler : sklearn.preprocessing.StandardScaler
         Pre-trained feature scaler for normalization
+    feature_names : list[str]
+        Ordered list of feature names matching model training order
 
     Attributes
     ----------
