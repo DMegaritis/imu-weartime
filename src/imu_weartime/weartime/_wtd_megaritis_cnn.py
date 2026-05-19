@@ -100,6 +100,23 @@ class WtdMegaritis_CNN(BaseWeartimeDetector):
 
         self.model = keras.models.load_model(model_file)
 
+    def __getstate__(self):
+        """Exclude model from pickling/hashing."""
+        state = self.__dict__.copy()
+        # Remove the model from state
+        state.pop('model', None)
+        return state
+
+    def __setstate__(self, state):
+        """Restore model after unpickling."""
+        self.__dict__.update(state)
+        # Reload the model based on version
+        if self.version == "cnn":
+            model_file = files('sustain.weartime.production_models').joinpath('cnn_lowback_model.keras')
+        else:
+            model_file = files('sustain.weartime.production_models').joinpath('cnn_lstm_lowback_model.keras')
+        self.model = keras.models.load_model(model_file)
+
     @timed_action_method
     @base_weartime_docfiller
     def detect(
