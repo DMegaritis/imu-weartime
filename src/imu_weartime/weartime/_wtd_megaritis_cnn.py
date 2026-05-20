@@ -70,22 +70,38 @@ class WtdMegaritisCNN(BaseWeartimeDetector):
     %(total_weartime_samples_)s
     %(total_weartime_minutes_)s
     %(total_weartime_hours_)s
+    %(total_weartime_hours_during_waking_)s
     %(perf_)s
 
     Notes
     -----
+    **Waking Hours Calculation**
+    In addition to total wear-time, this algorithm calculates wear-time during waking hours
+    (07:00-22:00). The waking hours value is extracted from the post-processed sample-level
+    predictions by filtering wear-time to the 07:00-22:00 window.
+
+    The pipeline is designed for daily recordings (midnight-to-midnight, ~24 hours).
+    For recordings shorter than 22 hours or longer than 25 hours, the algorithm issues a warning
+    and uses ``total_weartime_hours_`` as a fallback for ``total_weartime_hours_during_waking_``,
+    as the waking hours window cannot be reliably identified in non-standard recording durations.
+    Waking hours are identified using sample indices (07:00 = 7x3600xsampling_rate_hz) rather than
+    timestamps, ensuring compatibility with devices that may not provide timestamp metadata.
+
+    **Model Architecture**
     Pre-trained model is loaded from the package's production_models folder.
     CNN operates on raw windowed IMU data with per-window standardization
     (features scaled to zero mean, unit variance per window).
 
-    Model architecture: 3-layer 1D CNN with filters [32, 64, 128], kernel size 9,
-    max pooling, batch normalization, and dropout (0.3). Trained on all 26 subjects
-    for production deployment.
+    Model architecture: 3-layer 1D CNN with progressively increasing filters [32, 64, 128],
+    kernel size 9, max pooling (size 2), batch normalization, and dropout (0.3). Fully
+    connected layer with 64 units. Trained with Adam optimizer (learning rate 0.001,
+    batch size 1024). CNN-LSTM variant includes 64-unit LSTM layer before dense layer.
     """
 
     # Type hints
     data_length: int
-    model: Any  # keras.Model
+    model: Any
+    total_weartime_hours_during_waking_: float
 
     def __init__(
         self,
@@ -208,6 +224,7 @@ class WtdMegaritisCNN(BaseWeartimeDetector):
             _total_weartime_seconds,
             self.total_weartime_minutes_,
             self.total_weartime_hours_,
+            self.total_weartime_hours_during_waking_,
             _coverage,
         ) = overlapping_windows_to_sample_labels(
             predictions=all_predictions,

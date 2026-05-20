@@ -1,5 +1,4 @@
 # Copyright 2026 Dr Dimitrios Megaritis
-# Novel wear-time detection algorithm using gyroscope patterns
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import warnings
 from typing import Any, Literal, Unpack
 
 import numpy as np
@@ -83,14 +83,14 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
     %(total_weartime_samples_)s
     %(total_weartime_minutes_)s
     %(total_weartime_hours_)s
+    %(total_weartime_hours_during_waking_)s
     %(perf_)s
     diagnostics_ : dict
         Diagnostic information with 'macro' and 'sample_votes' keys
 
     Notes
     -----
-    Algorithm workflow:
-
+    **Algorithm Workflow**
     1. Sliding macro windows are defined over the input data
     2. Each macro window is divided into micro windows (5s) for feature extraction
     3. Three features are extracted per micro window:
@@ -107,11 +107,24 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
     from sensor noise or voting conflicts. Stage 2 (20-minute ratio filter) removes short
     wear bouts surrounded by disproportionate non-wear (ratio <0.3), likely device handling
     rather than true wear events.
+
+    **Waking Hours Calculation**
+    In addition to total wear-time, this algorithm calculates wear-time during waking hours
+    (07:00-22:00). The waking hours value is extracted from the post-processed sample-level
+    predictions by filtering wear-time to the 07:00-22:00 window.
+
+    The pipeline is designed for daily recordings (midnight-to-midnight, ~24 hours).
+    For recordings shorter than 22 hours or longer than 25 hours, the algorithm issues a warning
+    and uses ``total_weartime_hours_`` as a fallback for ``total_weartime_hours_during_waking_``,
+    as the waking hours window cannot be reliably identified in non-standard recording durations.
+    Waking hours are identified using sample indices (07:00 = 7x3600xsampling_rate_hz) rather than
+    timestamps, ensuring compatibility with devices that may not provide timestamp metadata.
     """
 
     # Type hints
     data_length: int
     diagnostics_: dict[str, pd.DataFrame | list]
+    total_weartime_hours_during_waking_: float
 
     def __init__(
         self,
@@ -221,9 +234,7 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
 
             # --- Process boundary samples (partial macro window at end) ---
             # Calculate where the last complete macro window ended
-            last_complete_macro_end = (
-                (n_samples - window_samples) // step_samples + 1
-            ) * step_samples
+            last_complete_macro_end = ((n_samples - window_samples) // step_samples + 1) * step_samples
 
             if last_complete_macro_end < n_samples:
                 # There are unprocessed boundary samples
@@ -252,10 +263,7 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         # Post-processing Stage 2: Remove short wear bouts (≤20 min) with low contextual ratio
         # Removes suspected device handling events (e.g., 10-min "wear" surrounded by hours of non-wear)
         weartime_flags = remove_short_wear_bouts_by_ratio(
-            weartime_flags,
-            max_bout_minutes=20.0,
-            min_ratio=0.3,
-            sampling_rate_hz=self.sampling_rate_hz,
+            weartime_flags, max_bout_minutes=20.0, min_ratio=0.3, sampling_rate_hz=self.sampling_rate_hz
         )
 
         # Add diagnostic info after loop
@@ -273,22 +281,46 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         self.weartime_list_ = generate_weartime_list_from_samples(weartime_flags)
 
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
-            upper=self.data_length
-        )
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)
 
-        self.total_weartime_samples_ = (
-            self.weartime_list_["end"] - self.weartime_list_["start"]
-        ).sum()
-        self.total_weartime_minutes_ = self.total_weartime_samples_ / (
-            60 * self.sampling_rate_hz
-        )
-        self.total_weartime_hours_ = self.total_weartime_samples_ / (
-            3600 * self.sampling_rate_hz
-        )
+        self.total_weartime_samples_ = (self.weartime_list_["end"] - self.weartime_list_["start"]).sum()
+        self.total_weartime_minutes_ = self.total_weartime_samples_ / (60 * self.sampling_rate_hz)
+        self.total_weartime_hours_ = self.total_weartime_samples_ / (3600 * self.sampling_rate_hz)
+
+        # Weartime during waking hours (07:00-22:00)
+        waking_start_sample = int(7 * 3600 * self.sampling_rate_hz)
+        waking_end_sample = int(22 * 3600 * self.sampling_rate_hz)
+        recording_hours = self.data_length / (3600 * self.sampling_rate_hz)
+
+        # Check if recording is according to mobgap use case (single day)
+        if self.data_length < waking_end_sample:
+            # Recording shorter than 22:00 - use full weartime
+            warnings.warn(
+                f"Recording duration ({recording_hours:.1f}h) is shorter than waking hours window (07:00-22:00). "
+                f"Using total_weartime_hours_ for weartime_during_waking_hours.",
+                stacklevel=2,
+            )
+            self.total_weartime_hours_during_waking_ = self.total_weartime_hours_
+        elif recording_hours > 25:
+            # Recording longer than 25 hours - use full weartime
+            warnings.warn(
+                f"Recording duration ({recording_hours:.1f}h) exceeds a full day. "
+                f"Waking hours calculation assumes the recording is segmented per day. "
+                f"Using total_weartime_hours_ for weartime_during_waking_hours.",
+                stacklevel=2,
+            )
+            self.total_weartime_hours_during_waking_ = self.total_weartime_hours_
+        else:
+            # Normal day (22-25h): crop to waking hours
+            weartime_flags_waking = weartime_flags.copy()
+            weartime_flags_waking[:waking_start_sample] = 0
+            weartime_flags_waking[waking_end_sample:] = 0
+
+            total_weartime_samples_waking = weartime_flags_waking.sum()
+            self.total_weartime_hours_during_waking_ = total_weartime_samples_waking / (3600 * self.sampling_rate_hz)
 
         return self
 
@@ -336,15 +368,9 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         step = int(win_samples_micro * (1 - self.overlap))
 
         features_micro = []
-        for start_micro, end_micro in rolling_window_indices(
-            n_samples_macro, win_samples_micro, step
-        ):
+        for start_micro, end_micro in rolling_window_indices(n_samples_macro, win_samples_micro, step):
             micro_window = macro_window_data.iloc[start_micro:end_micro]
-            features_micro.append(
-                extract_features_from_windows(
-                    micro_window, sampling_rate=sampling_rate_hz
-                )
-            )
+            features_micro.append(extract_features_from_windows(micro_window, sampling_rate=sampling_rate_hz))
 
         # Only proceed if we have micro windows
         if len(features_micro) == 0:
@@ -411,18 +437,7 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
 
         for i in range(n_windows):
             # Check if required features are present (not NaN)
-            if (
-                features_df.loc[
-                    i,
-                    [
-                        "gyr_ml_spectral_centroid",
-                        "gyr_is_spectral_centroid",
-                        "acc_pa_std",
-                    ],
-                ]
-                .isna()
-                .any()
-            ):
+            if features_df.loc[i, ["gyr_ml_spectral_centroid", "gyr_is_spectral_centroid", "acc_pa_std"]].isna().any():
                 # Default to wear if features are missing (conservative)
                 wear_flags[i] = True
                 continue

@@ -79,19 +79,34 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
     %(total_weartime_samples_)s
     %(total_weartime_minutes_)s
     %(total_weartime_hours_)s
+    %(total_weartime_hours_during_waking_)s
     %(perf_)s
 
     Notes
     -----
+    **Model and Performance**
     Pre-trained models are loaded from the package's production_models folder.
     XGBoost models do not require feature scaling.
     Feature extraction dominates computation time. For large datasets,
     consider using version="lightweight" for ~3x faster inference.
+
+    **Waking Hours Calculation**
+    In addition to total wear-time, this algorithm calculates wear-time during waking hours
+    (07:00-22:00). The waking hours value is extracted from the post-processed sample-level
+    predictions by filtering wear-time to the 07:00-22:00 window.
+
+    The pipeline is designed for daily recordings (midnight-to-midnight, ~24 hours).
+    For recordings shorter than 22 hours or longer than 25 hours, the algorithm issues a warning
+    and uses ``total_weartime_hours_`` as a fallback for ``total_weartime_hours_during_waking_``,
+    as the waking hours window cannot be reliably identified in non-standard recording durations.
+    Waking hours are identified using sample indices (07:00 = 7x3600xsampling_rate_hz) rather than
+    timestamps, ensuring compatibility with devices that may not provide timestamp metadata.
     """
 
     # Type hints
     data_length: int
     feature_names: list[str]
+    total_weartime_hours_during_waking_: float
 
     def __init__(
         self,
@@ -199,10 +214,11 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
         # Post-processing: convert window predictions to sample-level weartime
         (
             self.weartime_list_,
-            total_samples,
+            self.total_weartime_samples_,
             _total_seconds,
-            total_minutes,
-            total_hours,
+            self.total_weartime_minutes_,
+            self.total_weartime_hours_,
+            self.total_weartime_hours_during_waking_,
             _coverage,
         ) = overlapping_windows_to_sample_labels(
             predictions=all_predictions,
@@ -212,15 +228,8 @@ class WtdMegaritisXGBoost(BaseWeartimeDetector):
             sampling_rate_hz=int(sampling_rate_hz),
         )
 
-        # Store statistics
-        self.total_weartime_samples_ = total_samples
-        self.total_weartime_minutes_ = total_minutes
-        self.total_weartime_hours_ = total_hours
-
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
-            upper=self.data_length
-        )
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)
