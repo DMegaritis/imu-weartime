@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "imu-weartime"
-version = "0.2.0"
+version = "1.0.0"
 description = "Wear-time detection algorithms for IMU wearable sensors"
 authors = ["Dr Dimitrios Megaritis <d.megaritis@northumbria.ac.uk>"]
 license = "Apache-2.0"
