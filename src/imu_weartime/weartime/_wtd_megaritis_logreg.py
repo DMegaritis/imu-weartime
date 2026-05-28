@@ -15,7 +15,9 @@
 import pandas as pd
 from importlib.resources import files
 import pickle
-from typing import Any, Unpack, Literal
+from typing import Any, Literal
+
+from typing_extensions import Unpack
 from typing_extensions import Self
 from imu_weartime.weartime.utils.ml_feature_extraction import rolling_window_indices
 from imu_weartime.weartime.base_weartime_detector import (

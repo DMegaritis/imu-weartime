@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
-from typing import Any, Unpack, Literal
+from typing import Any, Literal
+
+from typing_extensions import Unpack
 from typing_extensions import Self
 from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector
 from imu_weartime.weartime.utils.weartime_calc import (
