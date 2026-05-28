@@ -153,7 +153,13 @@ class BaseWeartimeDetector(Algorithm):
     perf_: MeasureTimeResults
 
     @base_weartime_docfiller
-    def detect(self, data: pd.DataFrame, *, sampling_rate_hz: float, **kwargs: Unpack[dict[str, Any]]) -> Self:
+    def detect(
+        self,
+        data: pd.DataFrame,
+        *,
+        sampling_rate_hz: float,
+        **kwargs: Unpack[dict[str, Any]],
+    ) -> Self:
         """%(detect_short)s.
 
         Parameters
@@ -184,7 +190,9 @@ class BaseWeartimeDetector(Algorithm):
         %(self_optimize_return)s
 
         """
-        raise NotImplementedError("This algorithm does not implement a internal optimization.")
+        raise NotImplementedError(
+            "This algorithm does not implement a internal optimization."
+        )
 
 
 def get_weartime_df_dtypes(expected_id_name: str = "wt_id") -> dict[str, str]:
@@ -207,7 +215,9 @@ def get_weartime_df_dtypes(expected_id_name: str = "wt_id") -> dict[str, str]:
     }
 
 
-def _unify_weartime_df(df: pd.DataFrame, expected_id_name: str = "wt_id") -> pd.DataFrame:
+def _unify_weartime_df(
+    df: pd.DataFrame, expected_id_name: str = "wt_id"
+) -> pd.DataFrame:
     """Unify the format of a weartime dataframe.
 
     This function ensures that the weartime dataframe has the expected format with proper
@@ -230,7 +240,14 @@ def _unify_weartime_df(df: pd.DataFrame, expected_id_name: str = "wt_id") -> pd.
     elif expected_id_name not in df.columns:
         df = df.reset_index()
     weartime_df_dtypes = get_weartime_df_dtypes(expected_id_name)
-    return df.astype(weartime_df_dtypes)[list(weartime_df_dtypes.keys())].set_index(expected_id_name)
+    return df.astype(weartime_df_dtypes)[list(weartime_df_dtypes.keys())].set_index(
+        expected_id_name
+    )
 
 
-__all__ = ["BaseWeartimeDetector", "_unify_weartime_df", "base_weartime_docfiller", "get_weartime_df_dtypes"]
+__all__ = [
+    "BaseWeartimeDetector",
+    "_unify_weartime_df",
+    "base_weartime_docfiller",
+    "get_weartime_df_dtypes",
+]

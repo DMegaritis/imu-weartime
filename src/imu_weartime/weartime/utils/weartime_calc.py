@@ -32,7 +32,9 @@ def per_minute_counts(counts_per_sec: np.ndarray) -> np.ndarray:
     return counts_per_min
 
 
-def generate_weartime_list_from_minutes(weartime_flags: np.ndarray, sampling_rate: int = 100) -> pd.DataFrame:
+def generate_weartime_list_from_minutes(
+    weartime_flags: np.ndarray, sampling_rate: int = 100
+) -> pd.DataFrame:
     """
     Generate a list of wear time bouts from binary flags per minute.
 
@@ -74,7 +76,9 @@ def generate_weartime_list_from_minutes(weartime_flags: np.ndarray, sampling_rat
     return df
 
 
-def generate_weartime_list_from_seconds(weartime_flags: np.ndarray, sampling_rate: int = 100) -> pd.DataFrame:
+def generate_weartime_list_from_seconds(
+    weartime_flags: np.ndarray, sampling_rate: int = 100
+) -> pd.DataFrame:
     """
     Generate a list of wear-time bouts from binary flags at per-second resolution.
 
@@ -130,7 +134,9 @@ def generate_weartime_list_from_samples(weartime_flags: np.ndarray) -> pd.DataFr
     starts = [0, *cuts.tolist()]
     bouts = np.split(weartime_flags, cuts)
 
-    wt_list = [(start, start + len(bout)) for start, bout in zip(starts, bouts) if bout[0] == 1]
+    wt_list = [
+        (start, start + len(bout)) for start, bout in zip(starts, bouts) if bout[0] == 1
+    ]
 
     df = pd.DataFrame(wt_list, columns=["start", "end"])
     df.index.name = "wt_id"

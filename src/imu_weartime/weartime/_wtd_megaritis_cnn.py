@@ -9,17 +9,27 @@ from typing_extensions import Self, Unpack
 
 from mobgap._utils_internal.misc import timed_action_method
 from mobgap.utils.array_handling import sliding_window_view
-from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, _unify_weartime_df, base_weartime_docfiller
-from imu_weartime.weartime.utils.windows_to_weartime import overlapping_windows_to_sample_labels
+from imu_weartime.weartime.base_weartime_detector import (
+    BaseWeartimeDetector,
+    _unify_weartime_df,
+    base_weartime_docfiller,
+)
+from imu_weartime.weartime.utils.windows_to_weartime import (
+    overlapping_windows_to_sample_labels,
+)
 
 
 @cache
 def _load_cnn_model(version: Literal["cnn", "cnn_lstm"]) -> Any:
     """Load pre-trained CNN model from package resources."""
     if version == "cnn":
-        model_file = files("imu_weartime.weartime.production_models").joinpath("cnn_lowback_model.keras")
+        model_file = files("imu_weartime.weartime.production_models").joinpath(
+            "cnn_lowback_model.keras"
+        )
     else:  # cnn_lstm
-        model_file = files("imu_weartime.weartime.production_models").joinpath("cnn_lstm_lowback_model.keras")
+        model_file = files("imu_weartime.weartime.production_models").joinpath(
+            "cnn_lstm_lowback_model.keras"
+        )
 
     return keras.models.load_model(model_file)
 

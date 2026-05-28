@@ -10,7 +10,6 @@ import os
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 # Config
 RAW_DATA_DIR = os.getenv("WEARTIME_RAW_DATA_DIR")
@@ -27,7 +26,8 @@ OUTPUT_FILE = Path("windowed_dataset_scaled.npz")
 WINDOW_SIZE = 500
 OVERLAP = 0.75
 # Users may need to adjust to their data, potitional arguments are used, col names do not matter in training
-SENSOR_COLS = ['acc_is', 'acc_ml', 'acc_pa', 'gyr_is', 'gyr_ml', 'gyr_pa']
+SENSOR_COLS = ["acc_is", "acc_ml", "acc_pa", "gyr_is", "gyr_ml", "gyr_pa"]
+
 
 def create_windowed_dataset(data, wt_ref, subject_id):
     """Extract overlapping windows with per-window standardization."""
@@ -55,8 +55,8 @@ def create_windowed_dataset(data, wt_ref, subject_id):
         # Label based on window center
         center_idx = start_idx + WINDOW_SIZE // 2
         is_wearing = np.any(
-            (wt_ref['start'].values <= center_idx) &
-            (center_idx <= wt_ref['end'].values)
+            (wt_ref["start"].values <= center_idx)
+            & (center_idx <= wt_ref["end"].values)
         )
         y[i] = int(is_wearing)
 
@@ -76,7 +76,6 @@ results = []
 
 for subject_id in all_data.keys():
     for sensor_name, sensor_data in all_data[subject_id].items():
-
         # Get wear-time reference for this recording
         # Could be DataFrame with ['start', 'end'] as sample indices
         # Example: pd.DataFrame({'start': [0, 10000], 'end': [5000, 20000]})
@@ -84,13 +83,11 @@ for subject_id in all_data.keys():
 
         try:
             X, y, groups = create_windowed_dataset(
-                data=sensor_data['data'],
-                wt_ref=wt_ref,
-                subject_id=int(subject_id)
+                data=sensor_data["data"], wt_ref=wt_ref, subject_id=int(subject_id)
             )
 
             if X.shape[0] > 0:
-                results.append({'X': X, 'y': y, 'groups': groups})
+                results.append({"X": X, "y": y, "groups": groups})
                 print(f"Processed {subject_id}: {X.shape[0]} windows")
 
         except Exception as e:
@@ -98,9 +95,9 @@ for subject_id in all_data.keys():
 
 # Combine and save
 if results:
-    X_all = np.concatenate([r['X'] for r in results], axis=0)
-    y_all = np.concatenate([r['y'] for r in results], axis=0)
-    groups_all = np.concatenate([r['groups'] for r in results], axis=0)
+    X_all = np.concatenate([r["X"] for r in results], axis=0)
+    y_all = np.concatenate([r["y"] for r in results], axis=0)
+    groups_all = np.concatenate([r["groups"] for r in results], axis=0)
 
     del results
     gc.collect()

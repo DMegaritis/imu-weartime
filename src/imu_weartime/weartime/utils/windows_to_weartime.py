@@ -155,7 +155,9 @@ def overlapping_windows_to_sample_labels(  # noqa: C901, PLR0912, PLR0915
 
                 # Avoid division by zero
                 if np.sum(total_bout_votes) > 0:
-                    wear_vote_proportion = np.sum(bout_vote_counts[:, 1]) / np.sum(total_bout_votes)
+                    wear_vote_proportion = np.sum(bout_vote_counts[:, 1]) / np.sum(
+                        total_bout_votes
+                    )
                 else:
                     wear_vote_proportion = 0.0
 
@@ -179,7 +181,9 @@ def overlapping_windows_to_sample_labels(  # noqa: C901, PLR0912, PLR0915
                 bout_vote_counts = vote_counts[start:end]
                 total_bout_votes = bout_vote_counts[:, 0] + bout_vote_counts[:, 1]
                 if np.sum(total_bout_votes) > 0:
-                    wear_vote_proportion = np.sum(bout_vote_counts[:, 1]) / np.sum(total_bout_votes)
+                    wear_vote_proportion = np.sum(bout_vote_counts[:, 1]) / np.sum(
+                        total_bout_votes
+                    )
                 else:
                     wear_vote_proportion = 1.0
 
@@ -265,7 +269,9 @@ def overlapping_windows_to_sample_labels(  # noqa: C901, PLR0912, PLR0915
         sample_labels_waking[:waking_start] = 0
         sample_labels_waking[waking_end:] = 0
 
-        total_weartime_hours_during_waking_ = np.sum(sample_labels_waking) / (3600 * sampling_rate_hz)
+        total_weartime_hours_during_waking_ = np.sum(sample_labels_waking) / (
+            3600 * sampling_rate_hz
+        )
 
     # Convert to DataFrame
     if wear_segments:
@@ -288,7 +294,9 @@ def overlapping_windows_to_sample_labels(  # noqa: C901, PLR0912, PLR0915
 
 
 def remove_isolated_short_periods(
-    weartime_flags: np.ndarray, min_period_sec: float = 15.0, sampling_rate_hz: float = 100.0
+    weartime_flags: np.ndarray,
+    min_period_sec: float = 15.0,
+    sampling_rate_hz: float = 100.0,
 ) -> np.ndarray:
     """
     Remove isolated wear/non-wear periods shorter than minimum duration.

@@ -10,7 +10,6 @@ For production training with real data, use separate scripts in training/ folder
 import json
 import time
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
@@ -37,7 +36,9 @@ all_labels = []
 all_groups = []
 
 for subject_id in range(1, N_SUBJECTS + 1):
-    windows = np.random.randn(N_WINDOWS_PER_SUBJECT, WINDOW_SIZE, N_CHANNELS).astype(np.float32)
+    windows = np.random.randn(N_WINDOWS_PER_SUBJECT, WINDOW_SIZE, N_CHANNELS).astype(
+        np.float32
+    )
     labels = np.random.randint(0, 2, N_WINDOWS_PER_SUBJECT)
     groups = np.full(N_WINDOWS_PER_SUBJECT, subject_id, dtype=np.int32)
 
@@ -63,61 +64,56 @@ total_start = time.time()
 
 # Hyperparameters
 HYPERPARAMETERS = {
-    'num_conv_layers': 3,
-    'filters': [32, 64, 128],
-    'kernel_size': 9,
-    'pool_size': 2,
-    'dropout_rate': 0.3,
-    'dense_units': 64,
-    'learning_rate': 0.001,
-    'batch_size': 1024,
-    'epochs': 57,
-    'lstm_units': 64
+    "num_conv_layers": 3,
+    "filters": [32, 64, 128],
+    "kernel_size": 9,
+    "pool_size": 2,
+    "dropout_rate": 0.3,
+    "dense_units": 64,
+    "learning_rate": 0.001,
+    "batch_size": 1024,
+    "epochs": 57,
+    "lstm_units": 64,
 }
 
 
 def create_cnn_lstm_model(input_shape, params):
     """CNN-LSTM architecture for wear-time detection."""
 
-    model = keras.Sequential([
-        layers.Input(shape=input_shape),
-
-        layers.Conv1D(params['filters'][0], params['kernel_size'], padding='same'),
-        layers.BatchNormalization(),
-        layers.Activation('relu'),
-        layers.MaxPooling1D(params['pool_size']),
-        layers.Dropout(params['dropout_rate']),
-
-        layers.Conv1D(params['filters'][1], params['kernel_size'], padding='same'),
-        layers.BatchNormalization(),
-        layers.Activation('relu'),
-        layers.MaxPooling1D(params['pool_size']),
-        layers.Dropout(params['dropout_rate']),
-
-        layers.Conv1D(params['filters'][2], params['kernel_size'], padding='same'),
-        layers.BatchNormalization(),
-        layers.Activation('relu'),
-        layers.MaxPooling1D(params['pool_size']),
-        layers.Dropout(params['dropout_rate']),
-
-        layers.LSTM(params['lstm_units'], return_sequences=False),
-        layers.Dropout(params['dropout_rate']),
-
-        layers.Dense(params['dense_units']),
-        layers.BatchNormalization(),
-        layers.Activation('relu'),
-        layers.Dropout(params['dropout_rate']),
-
-        layers.Dense(1, activation='sigmoid')
-    ])
+    model = keras.Sequential(
+        [
+            layers.Input(shape=input_shape),
+            layers.Conv1D(params["filters"][0], params["kernel_size"], padding="same"),
+            layers.BatchNormalization(),
+            layers.Activation("relu"),
+            layers.MaxPooling1D(params["pool_size"]),
+            layers.Dropout(params["dropout_rate"]),
+            layers.Conv1D(params["filters"][1], params["kernel_size"], padding="same"),
+            layers.BatchNormalization(),
+            layers.Activation("relu"),
+            layers.MaxPooling1D(params["pool_size"]),
+            layers.Dropout(params["dropout_rate"]),
+            layers.Conv1D(params["filters"][2], params["kernel_size"], padding="same"),
+            layers.BatchNormalization(),
+            layers.Activation("relu"),
+            layers.MaxPooling1D(params["pool_size"]),
+            layers.Dropout(params["dropout_rate"]),
+            layers.LSTM(params["lstm_units"], return_sequences=False),
+            layers.Dropout(params["dropout_rate"]),
+            layers.Dense(params["dense_units"]),
+            layers.BatchNormalization(),
+            layers.Activation("relu"),
+            layers.Dropout(params["dropout_rate"]),
+            layers.Dense(1, activation="sigmoid"),
+        ]
+    )
 
     model.compile(
         optimizer=keras.optimizers.Adam(
-            learning_rate=params['learning_rate'],
-            clipnorm=1.0
+            learning_rate=params["learning_rate"], clipnorm=1.0
         ),
-        loss='binary_crossentropy',
-        metrics=['accuracy']
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
     )
 
     return model
@@ -131,10 +127,11 @@ print(f"\nTraining for {HYPERPARAMETERS['epochs']} epochs...")
 training_start = time.time()
 
 history = model.fit(
-    X_all, y_all,
-    batch_size=HYPERPARAMETERS['batch_size'],
-    epochs=HYPERPARAMETERS['epochs'],
-    verbose=1
+    X_all,
+    y_all,
+    batch_size=HYPERPARAMETERS["batch_size"],
+    epochs=HYPERPARAMETERS["epochs"],
+    verbose=1,
 )
 
 training_time = time.time() - training_start
@@ -149,10 +146,12 @@ print(f"Training time: {timedelta(seconds=int(training_time))}")
 print(f"\nFinal epoch ({HYPERPARAMETERS['epochs']}):")
 print(f"  Accuracy: {history.history['accuracy'][-1]:.4f}")
 print(f"  Loss: {history.history['loss'][-1]:.4f}")
-print(f"\nFirst epoch:")
+print("\nFirst epoch:")
 print(f"  Accuracy: {history.history['accuracy'][0]:.4f}")
 print(f"  Loss: {history.history['loss'][0]:.4f}")
-print(f"\nImprovement: {(history.history['accuracy'][-1] - history.history['accuracy'][0]):.4f}")
+print(
+    f"\nImprovement: {(history.history['accuracy'][-1] - history.history['accuracy'][0]):.4f}"
+)
 print("=" * 70)
 print("\nDemo complete! For production training, use training/train_cnn_lstm.py")
 print("Note: Model not saved (synthetic data demo only)")
@@ -169,19 +168,21 @@ print("MODEL METADATA COLLECTION")
 print("=" * 70)
 
 metadata = {
-    'model_type': 'CNN_LSTM',
-    'version': 'demo',
-    'training_date': datetime.now().isoformat(),
-    'n_samples_total': int(len(X_all)),
-    'input_shape': list(X_all.shape[1:]),
-    'hyperparameters': HYPERPARAMETERS,
-    'class_distribution': {str(k): int(v) for k, v in zip(*np.unique(y_all, return_counts=True))},
-    'final_train_accuracy': float(history.history['accuracy'][-1]),
-    'final_train_loss': float(history.history['loss'][-1]),
-    'training_time_seconds': int(training_time),
-    'tensorflow_version': tf.__version__,
-    'numpy_version': np.__version__,
-    'notes': 'Demo model trained on synthetic data'
+    "model_type": "CNN_LSTM",
+    "version": "demo",
+    "training_date": datetime.now().isoformat(),
+    "n_samples_total": int(len(X_all)),
+    "input_shape": list(X_all.shape[1:]),
+    "hyperparameters": HYPERPARAMETERS,
+    "class_distribution": {
+        str(k): int(v) for k, v in zip(*np.unique(y_all, return_counts=True))
+    },
+    "final_train_accuracy": float(history.history["accuracy"][-1]),
+    "final_train_loss": float(history.history["loss"][-1]),
+    "training_time_seconds": int(training_time),
+    "tensorflow_version": tf.__version__,
+    "numpy_version": np.__version__,
+    "notes": "Demo model trained on synthetic data",
 }
 
 print("Metadata structure:")
