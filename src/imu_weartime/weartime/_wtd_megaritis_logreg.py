@@ -94,6 +94,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
     # Type hints
     data_length: int
     feature_names: list[str]
+    total_weartime_hours_during_waking_: float
     model: Any
     scaler: Any
 
@@ -224,6 +225,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
             total_weartime_seconds,
             self.total_weartime_minutes_,
             self.total_weartime_hours_,
+            self.total_weartime_hours_during_waking_,
             coverage,
         ) = overlapping_windows_to_sample_labels(
             predictions=all_predictions,
