@@ -65,7 +65,7 @@ Developed and validated specifically for this library (ranked by performance):
    - Versions: `"cnn"` (baseline) or `"cnn_lstm"` (with LSTM, default)
    - Operates on raw windowed IMU data (no feature engineering)
 
-2. **`WtdMegaritis_XGBoost`** - Gradient boosting classifier
+2. **`WtdMegaritisXGBoost`** - Gradient boosting classifier
    - Versions: `"full"` (230 features) or `"lightweight"` (79 features, default)
    - SHAP-based feature selection for lightweight variant
 
@@ -107,10 +107,10 @@ wtd = WtdMegaritis_CNN(version="cnn").detect(
 
 ### Machine Learning
 ```python
-from imu_weartime.weartime import WtdMegaritis_XGBoost, WtdMegaritis_LogReg
+from imu_weartime.weartime import WtdMegaritisXGBoost, WtdMegaritis_LogReg
 
 # XGBoost (lightweight by default)
-wtd_xgb = WtdMegaritis_XGBoost(version="lightweight").detect(
+wtd_xgb = WtdMegaritisXGBoost(version="lightweight").detect(
     imu_data, sampling_rate_hz=100.0
 )
 

@@ -4,7 +4,7 @@ r"""
 WTD Megaritis XGBoost
 =====================
 
-This example shows how to use the WtdMegaritis_XGBoost algorithm for wear-time
+This example shows how to use the WtdMegaritisXGBoost algorithm for wear-time
 detection using a pre-trained XGBoost model with time-domain and frequency-domain
 features.
 
@@ -67,7 +67,7 @@ example_data = LabExampleDataset(reference_system="INDIP", reference_para_level=
 # Below we apply the algorithm to a trial containing activities of daily living.
 # Note: This is controlled lab data where the sensor was worn for the entire recording,
 # so we expect the algorithm to detect close to 100%% wear-time.
-from imu_weartime.weartime import WtdMegaritis_XGBoost
+from imu_weartime.weartime import WtdMegaritisXGBoost
 
 single_test = example_data.get_subset(
     cohort="HA", participant_id="001", test="Test11", trial="Trial1"
@@ -77,7 +77,7 @@ imu_data = to_body_frame(single_test.data_ss)
 sampling_rate_hz = single_test.sampling_rate_hz
 
 # Apply algorithm
-wtd_output = WtdMegaritis_XGBoost().detect(imu_data, sampling_rate_hz=sampling_rate_hz)
+wtd_output = WtdMegaritisXGBoost().detect(imu_data, sampling_rate_hz=sampling_rate_hz)
 
 print("Detected Wear-Time Periods:\n")
 print(wtd_output.weartime_list_)
