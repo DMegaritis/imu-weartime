@@ -81,6 +81,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
     %(total_weartime_samples_)s
     %(total_weartime_minutes_)s
     %(total_weartime_hours_)s
+    %(total_weartime_hours_during_waking_)s
     %(perf_)s
 
     Notes
@@ -94,7 +95,6 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
     """
 
     # Type hints
-    data_length: int
     feature_names: list[str]
     total_weartime_hours_during_waking_: float
     model: Any
@@ -187,7 +187,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
         """
         self.data = data
         self.sampling_rate_hz = sampling_rate_hz
-        self.data_length = len(data)
+        data_length = len(data)
 
         win_samples = int(self.window_sec * self.sampling_rate_hz)
         step = int(win_samples * (1 - self.overlap))
@@ -195,7 +195,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
         all_predictions = []
 
         # Extract features and predict for each window
-        for start, end in rolling_window_indices(self.data_length, win_samples, step):
+        for start, end in rolling_window_indices(data_length, win_samples, step):
             win = self.data.iloc[start:end]
 
             # Extract features based on model version
@@ -231,7 +231,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
             coverage,
         ) = overlapping_windows_to_sample_labels(
             predictions=all_predictions,
-            data_len=self.data_length,
+            data_len=data_length,
             window_size=win_samples,
             stride=step,
             sampling_rate_hz=int(sampling_rate_hz),
@@ -242,7 +242,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
 
         # Ensure end indices don't exceed data length
         self.weartime_list_["end"] = self.weartime_list_["end"].clip(
-            upper=self.data_length
+            upper=data_length
         )
 
         # Unify format (adds wt_id index, ensures correct dtypes)
