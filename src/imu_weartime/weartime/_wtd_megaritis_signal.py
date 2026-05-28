@@ -13,29 +13,21 @@
 # limitations under the License.
 
 import warnings
-from typing import Any, Literal, Unpack
+from typing import Any, Literal, Union
 
 import numpy as np
 import pandas as pd
-from typing_extensions import Self
+from typing_extensions import Self, Unpack
 
 from mobgap._utils_internal.misc import timed_action_method
-from imu_weartime.weartime.base_weartime_detector import (
-    BaseWeartimeDetector,
-    _unify_weartime_df,
-    base_weartime_docfiller,
-)
+from imu_weartime.weartime.base_weartime_detector import BaseWeartimeDetector, _unify_weartime_df, base_weartime_docfiller
 from imu_weartime.weartime.utils.ml_feature_extraction import (
     extract_features_from_windows,
     remove_short_wear_bouts_by_ratio,
     rolling_window_indices,
 )
-from imu_weartime.weartime.utils.weartime_calc import (
-    generate_weartime_list_from_samples,
-)
-from imu_weartime.weartime.utils.windows_to_weartime import (
-    remove_isolated_short_periods,
-)
+from imu_weartime.weartime.utils.weartime_calc import generate_weartime_list_from_samples
+from imu_weartime.weartime.utils.windows_to_weartime import remove_isolated_short_periods
 
 
 @base_weartime_docfiller
@@ -91,6 +83,7 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
     Notes
     -----
     **Algorithm Workflow**
+
     1. Sliding macro windows are defined over the input data
     2. Each macro window is divided into micro windows (5s) for feature extraction
     3. Three features are extracted per micro window:
@@ -109,9 +102,11 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
     rather than true wear events.
 
     **Waking Hours Calculation**
+
     In addition to total wear-time, this algorithm calculates wear-time during waking hours
-    (07:00-22:00). The waking hours value is extracted from the post-processed sample-level
-    predictions by filtering wear-time to the 07:00-22:00 window.
+    (07:00-22:00), required for Mobilise-D DMO weekly aggregation. The waking hours value is
+    extracted from the post-processed sample-level predictions by filtering wear-time to the
+    07:00-22:00 window.
 
     The pipeline is designed for daily recordings (midnight-to-midnight, ~24 hours).
     For recordings shorter than 22 hours or longer than 25 hours, the algorithm issues a warning
@@ -122,8 +117,7 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
     """
 
     # Type hints
-    data_length: int
-    diagnostics_: dict[str, pd.DataFrame | list]
+    diagnostics_: dict[str, Union[pd.DataFrame, list]]
     total_weartime_hours_during_waking_: float
 
     def __init__(
@@ -188,8 +182,8 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         """
         self.data = data
         self.sampling_rate_hz = sampling_rate_hz
-        self.data_length = len(data)
-        self.diagnostics_: dict[str, pd.DataFrame | list] = {
+        data_length = len(data)
+        self.diagnostics_: dict[str, Union[pd.DataFrame, list]] = {
             "macro": [],
             "sample_votes": pd.DataFrame(),
         }
@@ -281,7 +275,7 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         self.weartime_list_ = generate_weartime_list_from_samples(weartime_flags)
 
         # Clip end to actual data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=self.data_length)
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=data_length)
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)
@@ -293,10 +287,10 @@ class WtdMegaritisSignal(BaseWeartimeDetector):
         # Weartime during waking hours (07:00-22:00)
         waking_start_sample = int(7 * 3600 * self.sampling_rate_hz)
         waking_end_sample = int(22 * 3600 * self.sampling_rate_hz)
-        recording_hours = self.data_length / (3600 * self.sampling_rate_hz)
+        recording_hours = data_length / (3600 * self.sampling_rate_hz)
 
         # Check if recording is according to mobgap use case (single day)
-        if self.data_length < waking_end_sample:
+        if data_length < waking_end_sample:
             # Recording shorter than 22:00 - use full weartime
             warnings.warn(
                 f"Recording duration ({recording_hours:.1f}h) is shorter than waking hours window (07:00-22:00). "
