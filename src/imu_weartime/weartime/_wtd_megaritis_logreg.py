@@ -241,9 +241,7 @@ class WtdMegaritisLogReg(BaseWeartimeDetector):
         )
 
         # Ensure end indices don't exceed data length
-        self.weartime_list_["end"] = self.weartime_list_["end"].clip(
-            upper=data_length
-        )
+        self.weartime_list_["end"] = self.weartime_list_["end"].clip(upper=data_length)
 
         # Unify format (adds wt_id index, ensures correct dtypes)
         self.weartime_list_ = _unify_weartime_df(self.weartime_list_)
