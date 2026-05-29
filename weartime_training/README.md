@@ -14,11 +14,9 @@ Both models use per-window standardized 5-second IMU windows (accelerometer + gy
 
 ## Quick Start
 
-**Try the demo with synthetic data:**
+**Demo with synthetic data:**
 
-```bash
-python examples/synthetic_training_demo.py
-```
+See `examples/synthetic_training_demo.py` for a complete end-to-end example using synthetic data.
 
 This generates synthetic data and trains a model end-to-end. Good for testing the training pipeline without real IMU data.
 
@@ -29,15 +27,11 @@ This generates synthetic data and trains a model end-to-end. Good for testing th
 Your data needs to be:
 - Body-frame IMU data with columns: `acc_is`, `acc_ml`, `acc_pa`, `gyr_is`, `gyr_ml`, `gyr_pa`
 - Accelerometer in m/s²
-- Wear-time labels as sample index intervals or timestamps or a custom based on your data
+- Wear-time labels as sample index intervals or timestamps
 
-Run the data preparation script:
+Adapt `data/create_training_dataset.py` to your data format. The script shows the required windowing and per-window standardization procedure.
 
-```bash
-python data/create_training_dataset.py
-```
-
-This creates an NPZ file with:
+**Output:** NPZ file with:
 - `X`: windowed data, shape (n_windows, 500, 6)
 - `y`: labels, 0=non-wear, 1=wear
 - `groups`: subject IDs for each window
@@ -48,19 +42,13 @@ The script applies per-window standardization (zero mean, unit std per channel).
 
 **CNN-LSTM (recommended, slightly better accuracy):**
 
-```bash
-export WEARTIME_DATA_PATH=path/to/your/dataset.npz
-python training/train_cnn_lstm.py
-```
+Configure and run `training/train_cnn_lstm.py`
 
 **Pure CNN (faster training, similar performance):**
 
-```bash
-export WEARTIME_DATA_PATH=path/to/your/dataset.npz
-python training/train_cnn.py
-```
+Configure and run `training/train_cnn.py`
 
-Models and metadata saved in `models/production/`
+Both scripts expect `WEARTIME_DATA_PATH` environment variable or direct path editing in the script. Models and metadata saved in `models/production/`
 
 ## Requirements
 
