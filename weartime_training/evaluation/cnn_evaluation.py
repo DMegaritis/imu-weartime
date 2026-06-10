@@ -45,12 +45,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
 
-tf.config.set_visible_devices([], 'GPU')
-tf.config.threading.set_intra_op_parallelism_threads(24)
-tf.config.threading.set_inter_op_parallelism_threads(24)
-
 print(f"TensorFlow version : {tf.__version__}")
-print(f"Configured for 24-core CPU (GPU disabled)")
 sys.stdout.flush()
 
 
