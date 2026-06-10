@@ -56,11 +56,8 @@ sys.stdout.flush()
 
 # Edit these paths and hyperparameters before running
 CONFIG = {
-    # Paths to one or more NPZ dataset files. All files are concatenated before
-    # LOSO splitting, so subjects must be uniquely identified across files.
-    "data_path": [
-        "/path/to/your/dataset.npz",
-    ],
+    # Path to the NPZ dataset file containing 'X', 'y', and 'groups' arrays.
+    "data_path": "/path/to/your/dataset.npz",
 
     # Directory where per-fold JSON results will be written.
     "output_dir": "./loso_outputs",
@@ -160,10 +157,10 @@ def load_npz_file(path):
 
     print(f"  Loading {p.name} ...", end=' ', flush=True)
     data = np.load(p)
-    X = data['X'].astype(np.float32)
-    y = data['y']
+    X      = data['X'].astype(np.float32)
+    y      = data['y']
     groups = data['groups']
-    print(f"{X.shape}  ({X.nbytes / 1024 ** 3:.2f} GB)")
+    print(f"{X.shape}  ({X.nbytes / 1024**3:.2f} GB)")
 
     return X, y, groups
 
@@ -272,7 +269,7 @@ def save_plots(all_y_true, all_y_prob, all_histories, plot_dir):
 def main():
     cfg = CONFIG
     hp  = cfg["hyperparameters"]
-    rng = np.random.default_rng(cfg["random_seed"])
+    np.random.seed(cfg["random_seed"])
 
     output_dir = Path(cfg["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -326,7 +323,7 @@ def main():
             continue
 
         # ── Train / val split ─────────────────────────────────────────────────
-        perm       = rng.permutation(len(train_idx))
+        perm       = np.random.permutation(len(train_idx))
         val_cut    = int((1 - cfg["val_split"]) * len(train_idx))
         tr_idx     = train_idx[perm[:val_cut]]
         val_idx    = train_idx[perm[val_cut:]]
