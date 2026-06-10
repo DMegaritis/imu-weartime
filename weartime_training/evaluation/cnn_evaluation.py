@@ -68,10 +68,8 @@ CONFIG = {
         "epochs": 100,
         "lstm_units": 0,
     },
-
     # Fraction of training data reserved for validation (per fold).
     "val_split": 0.1,
-
     # Random seed for reproducibility.
     "random_seed": 42,
 }
@@ -99,8 +97,17 @@ CONFIG = {
 
 # ── Model definition ──────────────────────────────────────────────────────────
 
-def create_1d_cnn(input_shape, num_conv_layers, filters, kernel_size, pool_size,
-                  dropout_rate, dense_units, learning_rate):
+
+def create_1d_cnn(
+    input_shape,
+    num_conv_layers,
+    filters,
+    kernel_size,
+    pool_size,
+    dropout_rate,
+    dense_units,
+    learning_rate,
+):
     """
     Build and compile a 1D CNN for binary IMU classification.
 
@@ -123,9 +130,9 @@ def create_1d_cnn(input_shape, num_conv_layers, filters, kernel_size, pool_size,
     model.add(layers.Input(shape=input_shape))
 
     for i in range(num_conv_layers):
-        model.add(layers.Conv1D(filters[i], kernel_size, padding='same'))
+        model.add(layers.Conv1D(filters[i], kernel_size, padding="same"))
         model.add(layers.BatchNormalization())
-        model.add(layers.Activation('relu'))
+        model.add(layers.Activation("relu"))
         model.add(layers.MaxPooling1D(pool_size))
         model.add(layers.Dropout(dropout_rate))
 
@@ -133,19 +140,20 @@ def create_1d_cnn(input_shape, num_conv_layers, filters, kernel_size, pool_size,
     model.add(layers.Flatten())
     model.add(layers.Dense(dense_units))
     model.add(layers.BatchNormalization())
-    model.add(layers.Activation('relu'))
+    model.add(layers.Activation("relu"))
     model.add(layers.Dropout(dropout_rate))
-    model.add(layers.Dense(1, activation='sigmoid'))
+    model.add(layers.Dense(1, activation="sigmoid"))
 
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-        loss='binary_crossentropy',
-        metrics=['accuracy'],
+        loss="binary_crossentropy",
+        metrics=["accuracy"],
     )
     return model
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
+
 
 def load_npz_file(path):
     """
@@ -167,16 +175,18 @@ def load_npz_file(path):
     if not p.exists():
         raise FileNotFoundError(f"Data file not found: {path}")
 
-    print(f"  Loading {p.name} ...", end=' ', flush=True)
+    print(f"  Loading {p.name} ...", end=" ", flush=True)
     data = np.load(p)
-    X      = data['X'].astype(np.float32)
-    y      = data['y']
-    groups = data['groups']
+    X = data["X"].astype(np.float32)
+    y = data["y"]
+    groups = data["groups"]
     print(f"{X.shape}  ({X.nbytes / 1024**3:.2f} GB)")
 
     return X, y, groups
 
+
 # ── Plot generation ───────────────────────────────────────────────────────────
+
 
 def save_plots(all_y_true, all_y_prob, all_histories, plot_dir):
     """
@@ -199,78 +209,85 @@ def save_plots(all_y_true, all_y_prob, all_histories, plot_dir):
     # 1. Calibration curve
     fig, ax = plt.subplots(figsize=(6, 6))
     frac_pos, mean_pred = calibration_curve(all_y_true, all_y_prob, n_bins=10)
-    ax.plot(mean_pred, frac_pos, 'o-', color='steelblue', label='CNN')
-    ax.plot([0, 1], [0, 1], 'k--', label='Perfect calibration')
-    ax.set_xlabel('Mean Predicted Probability', fontsize=12)
-    ax.set_ylabel('Fraction of Positives', fontsize=12)
+    ax.plot(mean_pred, frac_pos, "o-", color="steelblue", label="CNN")
+    ax.plot([0, 1], [0, 1], "k--", label="Perfect calibration")
+    ax.set_xlabel("Mean Predicted Probability", fontsize=12)
+    ax.set_ylabel("Fraction of Positives", fontsize=12)
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(plot_dir / "calibration_curve.png", dpi=150, bbox_inches='tight')
+    plt.savefig(plot_dir / "calibration_curve.png", dpi=150, bbox_inches="tight")
     plt.close()
 
     # 2. Precision-Recall curve
     fig, ax = plt.subplots(figsize=(6, 6))
     prec, rec, _ = precision_recall_curve(all_y_true, all_y_prob)
     ap = average_precision_score(all_y_true, all_y_prob)
-    ax.plot(rec, prec, color='steelblue', lw=2, label=f'AP = {ap:.4f}')
-    ax.set_xlabel('Recall', fontsize=12)
-    ax.set_ylabel('Precision', fontsize=12)
+    ax.plot(rec, prec, color="steelblue", lw=2, label=f"AP = {ap:.4f}")
+    ax.set_xlabel("Recall", fontsize=12)
+    ax.set_ylabel("Precision", fontsize=12)
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(plot_dir / "precision_recall_curve.png", dpi=150, bbox_inches='tight')
+    plt.savefig(plot_dir / "precision_recall_curve.png", dpi=150, bbox_inches="tight")
     plt.close()
 
     # 3. ROC curve
     fig, ax = plt.subplots(figsize=(6, 6))
     fpr, tpr, _ = roc_curve(all_y_true, all_y_prob)
     roc_auc = auc(fpr, tpr)
-    ax.plot(fpr, tpr, color='steelblue', lw=2, label=f'AUC = {roc_auc:.4f}')
-    ax.plot([0, 1], [0, 1], 'k--', label='Random classifier')
-    ax.set_xlabel('False Positive Rate', fontsize=12)
-    ax.set_ylabel('True Positive Rate', fontsize=12)
+    ax.plot(fpr, tpr, color="steelblue", lw=2, label=f"AUC = {roc_auc:.4f}")
+    ax.plot([0, 1], [0, 1], "k--", label="Random classifier")
+    ax.set_xlabel("False Positive Rate", fontsize=12)
+    ax.set_ylabel("True Positive Rate", fontsize=12)
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(plot_dir / "roc_curve.png", dpi=150, bbox_inches='tight')
+    plt.savefig(plot_dir / "roc_curve.png", dpi=150, bbox_inches="tight")
     plt.close()
 
     # 4 & 5. Loss and accuracy curves (mean ± std across folds)
     if all_histories:
-        max_epochs = max(h['epochs_trained'] for h in all_histories)
+        max_epochs = max(h["epochs_trained"] for h in all_histories)
 
         def pad(values, length):
             return values + [values[-1]] * (length - len(values))
 
-        train_loss = np.array([pad(h['loss'],         max_epochs) for h in all_histories])
-        val_loss   = np.array([pad(h['val_loss'],     max_epochs) for h in all_histories])
-        train_acc  = np.array([pad(h['accuracy'],     max_epochs) for h in all_histories])
-        val_acc    = np.array([pad(h['val_accuracy'], max_epochs) for h in all_histories])
-        epochs     = np.arange(1, max_epochs + 1)
+        train_loss = np.array([pad(h["loss"], max_epochs) for h in all_histories])
+        val_loss = np.array([pad(h["val_loss"], max_epochs) for h in all_histories])
+        train_acc = np.array([pad(h["accuracy"], max_epochs) for h in all_histories])
+        val_acc = np.array([pad(h["val_accuracy"], max_epochs) for h in all_histories])
+        epochs = np.arange(1, max_epochs + 1)
 
         for metric_train, metric_val, ylabel, filename in [
-            (train_loss, val_loss, 'Binary Cross-Entropy Loss', 'loss_curves.png'),
-            (train_acc,  val_acc,  'Accuracy',                  'accuracy_curves.png'),
+            (train_loss, val_loss, "Binary Cross-Entropy Loss", "loss_curves.png"),
+            (train_acc, val_acc, "Accuracy", "accuracy_curves.png"),
         ]:
             fig, ax = plt.subplots(figsize=(8, 5))
             for values, colour, label in [
-                (metric_train, 'steelblue', f'Training {ylabel.split()[0].lower()}'),
-                (metric_val,   'tomato',    f'Validation {ylabel.split()[0].lower()}'),
+                (metric_train, "steelblue", f"Training {ylabel.split()[0].lower()}"),
+                (metric_val, "tomato", f"Validation {ylabel.split()[0].lower()}"),
             ]:
                 mean, std = values.mean(axis=0), values.std(axis=0)
                 ax.plot(epochs, mean, color=colour, lw=2, label=label.capitalize())
-                ax.fill_between(epochs, mean - std, mean + std, alpha=0.15, color=colour)
-            ax.set_xlabel('Epoch', fontsize=12)
+                ax.fill_between(
+                    epochs, mean - std, mean + std, alpha=0.15, color=colour
+                )
+            ax.set_xlabel("Epoch", fontsize=12)
             ax.set_ylabel(ylabel, fontsize=12)
             ax.legend(fontsize=10)
             ax.grid(alpha=0.3)
             plt.tight_layout()
-            plt.savefig(plot_dir / filename, dpi=150, bbox_inches='tight')
+            plt.savefig(plot_dir / filename, dpi=150, bbox_inches="tight")
             plt.close()
 
-    saved = ["calibration_curve.png", "precision_recall_curve.png", "roc_curve.png",
-             "loss_curves.png", "accuracy_curves.png"]
+    saved = [
+        "calibration_curve.png",
+        "precision_recall_curve.png",
+        "roc_curve.png",
+        "loss_curves.png",
+        "accuracy_curves.png",
+    ]
     print("\nPlots saved:")
     for name in saved:
         print(f"  {plot_dir / name}")
@@ -278,9 +295,10 @@ def save_plots(all_y_true, all_y_prob, all_histories, plot_dir):
 
 # ── Main LOSO loop ────────────────────────────────────────────────────────────
 
+
 def main():
     cfg = CONFIG
-    hp  = cfg["hyperparameters"]
+    hp = cfg["hyperparameters"]
     np.random.seed(cfg["random_seed"])
 
     output_dir = Path(cfg["output_dir"])
@@ -299,10 +317,10 @@ def main():
     print("=" * 60 + "\n")
     sys.stdout.flush()
 
-    input_shape      = X.shape[1:]
-    unique_subjects  = np.unique(groups)
-    n_folds          = len(unique_subjects)
-    gkf              = GroupKFold(n_splits=n_folds)
+    input_shape = X.shape[1:]
+    unique_subjects = np.unique(groups)
+    n_folds = len(unique_subjects)
+    gkf = GroupKFold(n_splits=n_folds)
 
     fold_results = []
     all_y_test, all_y_pred, all_y_prob = [], [], []
@@ -313,7 +331,7 @@ def main():
     total_start = time.time()
 
     for fold_idx, (train_idx, test_idx) in enumerate(gkf.split(y, y, groups)):
-        fold_start  = time.time()
+        fold_start = time.time()
         test_subject = str(groups[test_idx][0])
 
         print(f"\n{'=' * 60}")
@@ -326,97 +344,109 @@ def main():
             print(f"  Already completed — loading {result_file.name}")
             with open(result_file) as f:
                 saved = json.load(f)
-            if 'predictions' in saved:
-                all_y_test.extend(saved['predictions']['y_true'])
-                all_y_pred.extend(saved['predictions']['y_pred'])
-                all_y_prob.extend(saved['predictions']['y_prob'])
-            if 'training_history' in saved:
-                all_histories.append(saved['training_history'])
+            if "predictions" in saved:
+                all_y_test.extend(saved["predictions"]["y_true"])
+                all_y_pred.extend(saved["predictions"]["y_pred"])
+                all_y_prob.extend(saved["predictions"]["y_prob"])
+            if "training_history" in saved:
+                all_histories.append(saved["training_history"])
             continue
 
         # ── Train / val split ─────────────────────────────────────────────────
-        perm       = np.random.permutation(len(train_idx))
-        val_cut    = int((1 - cfg["val_split"]) * len(train_idx))
-        tr_idx     = train_idx[perm[:val_cut]]
-        val_idx    = train_idx[perm[val_cut:]]
+        perm = np.random.permutation(len(train_idx))
+        val_cut = int((1 - cfg["val_split"]) * len(train_idx))
+        tr_idx = train_idx[perm[:val_cut]]
+        val_idx = train_idx[perm[val_cut:]]
 
-        X_train, y_train = X[tr_idx],   y[tr_idx]
-        X_val,   y_val   = X[val_idx],  y[val_idx]
-        X_test,  y_test  = X[test_idx], y[test_idx]
+        X_train, y_train = X[tr_idx], y[tr_idx]
+        X_val, y_val = X[val_idx], y[val_idx]
+        X_test, y_test = X[test_idx], y[test_idx]
 
-        print(f"  Train: {len(tr_idx):,}  |  Val: {len(val_idx):,}  |  Test: {len(test_idx):,}")
+        print(
+            f"  Train: {len(tr_idx):,}  |  Val: {len(val_idx):,}  |  Test: {len(test_idx):,}"
+        )
         sys.stdout.flush()
 
         # ── Build & train model ───────────────────────────────────────────────
         model = create_1d_cnn(
-            input_shape     = input_shape,
-            num_conv_layers = hp['num_conv_layers'],
-            filters         = hp['filters'],
-            kernel_size     = hp['kernel_size'],
-            pool_size       = hp['pool_size'],
-            dropout_rate    = hp['dropout_rate'],
-            dense_units     = hp['dense_units'],
-            learning_rate   = hp['learning_rate'],
+            input_shape=input_shape,
+            num_conv_layers=hp["num_conv_layers"],
+            filters=hp["filters"],
+            kernel_size=hp["kernel_size"],
+            pool_size=hp["pool_size"],
+            dropout_rate=hp["dropout_rate"],
+            dense_units=hp["dense_units"],
+            learning_rate=hp["learning_rate"],
         )
 
         callbacks = [
             keras.callbacks.EarlyStopping(
-                monitor='val_loss', patience=10,
-                restore_best_weights=True, verbose=1,
+                monitor="val_loss",
+                patience=10,
+                restore_best_weights=True,
+                verbose=1,
             ),
             keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss', factor=0.5,
-                patience=3, min_lr=1e-6, verbose=1,
+                monitor="val_loss",
+                factor=0.5,
+                patience=3,
+                min_lr=1e-6,
+                verbose=1,
             ),
         ]
 
         history = model.fit(
-            X_train, y_train,
-            batch_size      = hp['batch_size'],
-            epochs          = hp['epochs'],
-            validation_data = (X_val, y_val),
-            callbacks       = callbacks,
-            verbose         = 1,
+            X_train,
+            y_train,
+            batch_size=hp["batch_size"],
+            epochs=hp["epochs"],
+            validation_data=(X_val, y_val),
+            callbacks=callbacks,
+            verbose=1,
         )
 
-        n_epochs = len(history.history['loss'])
+        n_epochs = len(history.history["loss"])
         print(f"  Training complete — stopped at epoch {n_epochs}")
 
         history_dict = {
-            'fold'          : fold_idx + 1,
-            'subject'       : test_subject,
-            'loss'          : history.history['loss'],
-            'val_loss'      : history.history['val_loss'],
-            'accuracy'      : history.history['accuracy'],
-            'val_accuracy'  : history.history['val_accuracy'],
-            'epochs_trained': n_epochs,
+            "fold": fold_idx + 1,
+            "subject": test_subject,
+            "loss": history.history["loss"],
+            "val_loss": history.history["val_loss"],
+            "accuracy": history.history["accuracy"],
+            "val_accuracy": history.history["val_accuracy"],
+            "epochs_trained": n_epochs,
         }
         all_histories.append(history_dict)
 
         # ── Evaluate ──────────────────────────────────────────────────────────
-        y_prob = model.predict(X_test, batch_size=hp['batch_size'], verbose=0).flatten()
+        y_prob = model.predict(X_test, batch_size=hp["batch_size"], verbose=0).flatten()
         y_pred = (y_prob > 0.5).astype(int)
 
-        acc              = accuracy_score(y_test, y_pred)
+        acc = accuracy_score(y_test, y_pred)
         prec, rec, f1, _ = precision_recall_fscore_support(
-            y_test, y_pred, average='binary', zero_division=0
+            y_test, y_pred, average="binary", zero_division=0
         )
         cm = confusion_matrix(y_test, y_pred)
 
-        print(f"\n  Accuracy: {acc:.4f}  Precision: {prec:.4f}  "
-              f"Recall: {rec:.4f}  F1: {f1:.4f}")
+        print(
+            f"\n  Accuracy: {acc:.4f}  Precision: {prec:.4f}  "
+            f"Recall: {rec:.4f}  F1: {f1:.4f}"
+        )
         print(f"  Confusion matrix:\n{cm}")
 
-        fold_results.append({
-            'fold'            : fold_idx + 1,
-            'subject'         : test_subject,
-            'n_test_samples'  : int(len(y_test)),
-            'accuracy'        : float(acc),
-            'precision'       : float(prec),
-            'recall'          : float(rec),
-            'f1_score'        : float(f1),
-            'confusion_matrix': cm.tolist(),
-        })
+        fold_results.append(
+            {
+                "fold": fold_idx + 1,
+                "subject": test_subject,
+                "n_test_samples": int(len(y_test)),
+                "accuracy": float(acc),
+                "precision": float(prec),
+                "recall": float(rec),
+                "f1_score": float(f1),
+                "confusion_matrix": cm.tolist(),
+            }
+        )
 
         all_y_test.extend(y_test.tolist())
         all_y_pred.extend(y_pred.tolist())
@@ -424,28 +454,28 @@ def main():
 
         # ── Save per-fold result ──────────────────────────────────────────────
         fold_output = {
-            'subject'         : test_subject,
-            'hyperparameters' : hp,
-            'n_test_samples'  : int(len(y_test)),
-            'accuracy'        : float(acc),
-            'precision'       : float(prec),
-            'recall'          : float(rec),
-            'f1_score'        : float(f1),
-            'confusion_matrix': cm.tolist(),
-            'predictions'     : {
-                'y_true': y_test.tolist(),
-                'y_pred': y_pred.tolist(),
-                'y_prob': y_prob.tolist(),
+            "subject": test_subject,
+            "hyperparameters": hp,
+            "n_test_samples": int(len(y_test)),
+            "accuracy": float(acc),
+            "precision": float(prec),
+            "recall": float(rec),
+            "f1_score": float(f1),
+            "confusion_matrix": cm.tolist(),
+            "predictions": {
+                "y_true": y_test.tolist(),
+                "y_pred": y_pred.tolist(),
+                "y_prob": y_prob.tolist(),
             },
-            'training_history': history_dict,
+            "training_history": history_dict,
         }
-        with open(result_file, 'w') as f:
+        with open(result_file, "w") as f:
             json.dump(fold_output, f, indent=2)
         print(f"  Saved: {result_file}")
 
         # ── Timing ────────────────────────────────────────────────────────────
-        elapsed   = time.time() - total_start
-        avg_fold  = elapsed / (fold_idx + 1)
+        elapsed = time.time() - total_start
+        avg_fold = elapsed / (fold_idx + 1)
         remaining = avg_fold * (n_folds - fold_idx - 1)
         print(f"\n  Fold time : {timedelta(seconds=int(time.time() - fold_start))}")
         print(f"  Elapsed   : {timedelta(seconds=int(elapsed))}")
@@ -466,32 +496,34 @@ def main():
     if fold_results:
         df = pd.DataFrame(fold_results)
         overall_cm = confusion_matrix(all_y_test, all_y_pred)
-        for metric in ('accuracy', 'precision', 'recall', 'f1_score'):
-            print(f"  {metric.capitalize():12s}: {df[metric].mean():.4f} ± {df[metric].std():.4f}")
+        for metric in ("accuracy", "precision", "recall", "f1_score"):
+            print(
+                f"  {metric.capitalize():12s}: {df[metric].mean():.4f} ± {df[metric].std():.4f}"
+            )
         print(f"\nOverall confusion matrix:\n{overall_cm}")
 
         summary = {
-            'model_type'             : 'CNN_1D_LOSO',
-            'hyperparameters'        : hp,
-            'mean_accuracy'          : float(df['accuracy'].mean()),
-            'std_accuracy'           : float(df['accuracy'].std()),
-            'mean_precision'         : float(df['precision'].mean()),
-            'std_precision'          : float(df['precision'].std()),
-            'mean_recall'            : float(df['recall'].mean()),
-            'std_recall'             : float(df['recall'].std()),
-            'mean_f1_score'          : float(df['f1_score'].mean()),
-            'std_f1_score'           : float(df['f1_score'].std()),
-            'overall_confusion_matrix': overall_cm.tolist(),
-            'total_runtime_seconds'  : int(total_time),
-            'per_fold_results'       : fold_results,
+            "model_type": "CNN_1D_LOSO",
+            "hyperparameters": hp,
+            "mean_accuracy": float(df["accuracy"].mean()),
+            "std_accuracy": float(df["accuracy"].std()),
+            "mean_precision": float(df["precision"].mean()),
+            "std_precision": float(df["precision"].std()),
+            "mean_recall": float(df["recall"].mean()),
+            "std_recall": float(df["recall"].std()),
+            "mean_f1_score": float(df["f1_score"].mean()),
+            "std_f1_score": float(df["f1_score"].std()),
+            "overall_confusion_matrix": overall_cm.tolist(),
+            "total_runtime_seconds": int(total_time),
+            "per_fold_results": fold_results,
         }
         results_file = output_dir / "loso_summary.json"
-        with open(results_file, 'w') as f:
+        with open(results_file, "w") as f:
             json.dump(summary, f, indent=2)
         print(f"\nSummary saved to {results_file}")
 
         history_file = output_dir / "training_histories.json"
-        with open(history_file, 'w') as f:
+        with open(history_file, "w") as f:
             json.dump(all_histories, f, indent=2)
         print(f"Histories saved to {history_file}")
 
