@@ -19,7 +19,6 @@ import sys
 import json
 import gc
 import time
-import argparse
 from datetime import timedelta
 from pathlib import Path
 
@@ -50,17 +49,13 @@ sys.stdout.flush()
 
 
 # Edit these paths and hyperparameters before running
+# ── Choose one configuration and comment out the other ───────────────────────
+
+# CNN only
 CONFIG = {
-    # Path to the NPZ dataset file containing 'X', 'y', and 'groups' arrays.
     "data_path": "/path/to/your/dataset.npz",
-
-    # Directory where per-fold JSON results will be written.
-    "output_dir": "./loso_outputs",
-
-    # Directory where diagnostic plots will be saved.
-    "plot_dir": "./loso_plots",
-
-    # Model hyperparameters
+    "output_dir": "./loso_outputs_cnn",
+    "plot_dir": "./loso_plots_cnn",
     "hyperparameters": {
         "num_conv_layers": 3,
         "filters": [32, 64, 128],
@@ -71,6 +66,7 @@ CONFIG = {
         "learning_rate": 0.001,
         "batch_size": 1024,
         "epochs": 100,
+        "lstm_units": 0,
     },
 
     # Fraction of training data reserved for validation (per fold).
@@ -79,6 +75,27 @@ CONFIG = {
     # Random seed for reproducibility.
     "random_seed": 42,
 }
+
+# CNN-LSTM
+# CONFIG = {
+#     "data_path": "/path/to/your/dataset.npz",
+#     "output_dir": "./loso_outputs_cnn_lstm",
+#     "plot_dir": "./loso_plots_cnn_lstm",
+#     "hyperparameters": {
+#         "num_conv_layers": 3,
+#         "filters": [32, 64, 128],
+#         "kernel_size": 9,
+#         "pool_size": 2,
+#         "dropout_rate": 0.3,
+#         "dense_units": 64,
+#         "learning_rate": 0.001,
+#         "batch_size": 1024,
+#         "epochs": 100,
+#         "lstm_units": 64,
+#     },
+#     "val_split": 0.1,
+#     "random_seed": 42,
+# }
 
 # ── Model definition ──────────────────────────────────────────────────────────
 
