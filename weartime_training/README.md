@@ -4,13 +4,21 @@ Training scripts and reproducibility materials for IMU-based wear-time detection
 
 ## Overview
 
-This repository contains everything needed to retrain the CNN wear-time detection models used in MobGap when dependencies are updated or improvements are made.
+This repository contains everything needed to evaluate and retrain the CNN wear-time detection models used in MobGap when dependencies are updated or improvements are made.
 
 **Models included:**
 - CNN (pure convolutional)
 - CNN-LSTM (convolutional + LSTM for temporal patterns)
 
 Both models use per-window standardized 5-second IMU windows (accelerometer + gyroscope) to classify wear vs non-wear periods.
+
+## Evaluation
+
+Each training run automatically evaluates the model using LOSO cross-validation and saves:
+
+- Per-subject JSON files with predictions, probabilities, and metrics
+- An aggregated `loso_summary.json` with mean ± std across all folds
+- Diagnostic plots: ROC curve, Precision-Recall curve, calibration curve, and loss/accuracy curves (mean ± std across folds)
 
 ## Quick Start
 
