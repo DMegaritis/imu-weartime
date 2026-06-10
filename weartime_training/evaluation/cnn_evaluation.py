@@ -1,15 +1,32 @@
 """
-Final 1D CNN model training and evaluation using LOSO cross-validation.
-Optimized for 24-core/512GB RAM Linux VM with NPZ files.
+1D CNN training and evaluation using Leave-One-Subject-Out (LOSO) cross-validation.
 
-Loads each fold's data from NPZ into RAM for fast training.
-Saves training histories and generates ROC, PR, calibration, loss and accuracy curves.
+Loads windowed IMU data from NPZ files, trains a 1D CNN per fold, and evaluates
+using standard binary classification metrics. Saves per-fold JSON results, aggregated
+results, training histories, and diagnostic plots (ROC, PR, calibration, loss, accuracy).
+
+Expected NPZ format
+-------------------
+Each NPZ file must contain:
+    X       : float array, shape (n_samples, window_length, n_channels)
+    y       : int array,   shape (n_samples,)   — binary labels (0/1)
+    groups  : array,       shape (n_samples,)   — subject identifiers
+
 """
 
-import pandas as pd
 import os
-import numpy as np
+import sys
+import json
+import gc
+import time
+import argparse
+from datetime import timedelta
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
 from sklearn.model_selection import GroupKFold
 from sklearn.metrics import (
     accuracy_score,
@@ -18,123 +35,85 @@ from sklearn.metrics import (
     precision_recall_curve,
     roc_curve,
     auc,
-    average_precision_score
+    average_precision_score,
 )
 from sklearn.calibration import calibration_curve
+
+
+import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras import backend as K
-import matplotlib.pyplot as plt
-import json
-import gc
-import time
-from datetime import timedelta
-import sys
 
-# Import utilities
-from features_novel_AI_model.model_evaluation.utils.windows_to_weartime import overlapping_windows_to_sample_labels
-from features_novel_AI_model.model_evaluation.utils.load_ref import get_subject_sensor_data
-from analysis_weartime.utils.performance_metrics import wtd_performance_metrics, wtd_performance_metrics_waking_hours
-
-# SET THREADING ENVIRONMENT VARIABLES BEFORE IMPORTING TENSORFLOW
-os.environ['TF_NUM_INTRAOP_THREADS'] = '24'
-os.environ['TF_NUM_INTEROP_THREADS'] = '24'
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '1'
-
-# Configure TensorFlow for 24-core CPU optimization
-import tensorflow as tf
-
-# Disable GPU completely
 tf.config.set_visible_devices([], 'GPU')
-
-# Optimize for 24 CPU cores
 tf.config.threading.set_intra_op_parallelism_threads(24)
 tf.config.threading.set_inter_op_parallelism_threads(24)
 
-print(f"[DEBUG] TensorFlow configured for 24-core CPU")
-print(f"[DEBUG] TensorFlow version: {tf.__version__}")
+print(f"TensorFlow version : {tf.__version__}")
+print(f"Configured for 24-core CPU (GPU disabled)")
 sys.stdout.flush()
 
-# Subject groups
-IDs_a = ['001', '002', '003', '004', '005', '006', '007', '008', '009', "010", "011", "012", "013", "014"]
-IDs_b = ['020', '021', '022', '023', '024', '025', '026', '027', '028', '029', '030', '031']
 
-# Loading the metadata
-with open('ref_metadata.json', 'r') as file:
-    ref_metadata = json.load(file)
+# Edit these paths and hyperparameters before running
+CONFIG = {
+    # Paths to one or more NPZ dataset files. All files are concatenated before
+    # LOSO splitting, so subjects must be uniquely identified across files.
+    "data_path": [
+        "/path/to/your/dataset.npz",
+    ],
 
-# Load data paths - VM paths
-part_a_path = "/mnt/SFData/SUSTAIN_data/cnn_windowed_dataset_lowback_scaled_perwindow.npz"
-part_b_path = "/mnt/SFData/SUSTAIN_data/cnn_windowed_dataset_part_b_scaled_perwindow.npz"
+    # Directory where per-fold JSON results will be written.
+    "output_dir": "./loso_outputs",
 
-# Verify paths exist
-if not Path(part_a_path).exists():
-    raise FileNotFoundError(f"Part A file not found: {part_a_path}")
-if not Path(part_b_path).exists():
-    raise FileNotFoundError(f"Part B file not found: {part_b_path}")
+    # Directory where diagnostic plots will be saved.
+    "plot_dir": "./loso_plots",
 
-print("Loading metadata for LOSO setup...")
+    # Model hyperparameters
+    "hyperparameters": {
+        "num_conv_layers": 3,
+        "filters": [32, 64, 128],
+        "kernel_size": 9,
+        "pool_size": 2,
+        "dropout_rate": 0.3,
+        "dense_units": 64,
+        "learning_rate": 0.001,
+        "batch_size": 1024,
+        "epochs": 100,
+    },
 
-# LOAD ALL DATA INTO RAM ONCE (instead of per-fold)
-print("\n" + "=" * 60)
-print("LOADING ALL DATA INTO RAM (ONE-TIME LOAD)")
-print("=" * 60)
-data_load_start = time.time()
-sys.stdout.flush()
+    # Fraction of training data reserved for validation (per fold).
+    "val_split": 0.1,
 
-print("Loading Part A data...")
-sys.stdout.flush()
-part_a_data = np.load(part_a_path)
-X_a = part_a_data['X'].astype(np.float32)
-groups_a = part_a_data['groups']
-labels_a = part_a_data['y']
-print(f"  Part A loaded: {X_a.shape}, {X_a.nbytes / 1024**3:.1f} GB")
-sys.stdout.flush()
+    # Random seed for reproducibility.
+    "random_seed": 42,
+}
 
-print("Loading Part B data...")
-sys.stdout.flush()
-part_b_data = np.load(part_b_path)
-X_b = part_b_data['X'].astype(np.float32)
-groups_b = part_b_data['groups']
-labels_b = part_b_data['y']
-print(f"  Part B loaded: {X_b.shape}, {X_b.nbytes / 1024**3:.1f} GB")
-sys.stdout.flush()
-
-# Combine all data
-X_combined = np.concatenate([X_a, X_b], axis=0)
-groups_combined = np.concatenate([groups_a, groups_b])
-labels_combined = np.concatenate([labels_a, labels_b])
-
-data_load_elapsed = time.time() - data_load_start
-print(f"\n✓ ALL DATA LOADED in {timedelta(seconds=int(data_load_elapsed))}")
-print(f"  Total shape: {X_combined.shape}")
-print(f"  Total memory: {X_combined.nbytes / 1024**3:.1f} GB")
-print(f"  Number of subjects: {len(np.unique(groups_combined))}")
-print("=" * 60 + "\n")
-sys.stdout.flush()
-
-# Get input shape
-input_shape = X_combined.shape[1:]
-
-print(f"Dataset info: {len(groups_combined):,} total samples, input shape: {input_shape}")
-print(f"Number of subjects: {len(np.unique(groups_combined))}")
-
+# ── Model definition ──────────────────────────────────────────────────────────
 
 def create_1d_cnn(input_shape, num_conv_layers, filters, kernel_size, pool_size,
                   dropout_rate, dense_units, learning_rate):
-    """Create a 1D CNN model optimized for IMU data."""
+    """
+    Build and compile a 1D CNN for binary IMU classification.
+
+    Parameters
+    ----------
+    input_shape     : tuple  — (window_length, n_channels)
+    num_conv_layers : int    — number of Conv1D blocks
+    filters         : list   — number of filters per Conv1D block
+    kernel_size     : int    — convolution kernel size
+    pool_size       : int    — max-pooling stride
+    dropout_rate    : float  — dropout probability after each block
+    dense_units     : int    — units in the penultimate dense layer
+    learning_rate   : float  — Adam learning rate
+
+    Returns
+    -------
+    keras.Sequential model (compiled)
+    """
     model = keras.Sequential()
     model.add(layers.Input(shape=input_shape))
 
-    # First conv layer
-    model.add(layers.Conv1D(filters[0], kernel_size, padding='same'))
-    model.add(layers.BatchNormalization())
-    model.add(layers.Activation('relu'))
-    model.add(layers.MaxPooling1D(pool_size))
-    model.add(layers.Dropout(dropout_rate))
-
-    # Additional conv layers
-    for i in range(1, num_conv_layers):
+    for i in range(num_conv_layers):
         model.add(layers.Conv1D(filters[i], kernel_size, padding='same'))
         model.add(layers.BatchNormalization())
         model.add(layers.Activation('relu'))
@@ -152,436 +131,91 @@ def create_1d_cnn(input_shape, num_conv_layers, filters, kernel_size, pool_size,
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
         loss='binary_crossentropy',
-        metrics=['accuracy']
+        metrics=['accuracy'],
     )
     return model
 
 
-# Best parameters
-best_params = {
-    'num_conv_layers': 3,
-    'filters': [32, 64, 128],
-    'kernel_size': 9,
-    'pool_size': 2,
-    'dropout_rate': 0.3,
-    'dense_units': 64,
-    'learning_rate': 0.001,
-    'batch_size': 1024,
-    'epochs': 100
-}
+# ── Data loading ──────────────────────────────────────────────────────────────
 
-# LOSO cross-validation
-gkf = GroupKFold(n_splits=len(np.unique(groups_combined)))
+def load_npz_file(path):
+    """
+    Load a single NPZ dataset file.
 
-# Storage for results
-fold_results = []
-all_y_test = []
-all_y_pred = []
-all_y_prob = []      # for ROC, PR, calibration curves
-all_histories = []   # for loss/accuracy curves
+    The file must contain arrays keyed 'X', 'y', and 'groups'.
 
-print("\n" + "=" * 60)
-print("STARTING LOSO CROSS-VALIDATION (26 folds)")
-print("=" * 60 + "\n")
+    Parameters
+    ----------
+    path : str or Path — path to the NPZ file
 
-total_start = time.time()
+    Returns
+    -------
+    X      : float32 ndarray, shape (N, window_length, channels)
+    y      : ndarray, shape (N,)
+    groups : ndarray, shape (N,)
+    """
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"Data file not found: {path}")
 
-for fold_idx, (train_idx, test_idx) in enumerate(gkf.split(labels_combined, labels_combined, groups_combined)):
-    fold_start = time.time()
+    print(f"  Loading {p.name} ...", end=' ', flush=True)
+    data = np.load(p)
+    X = data['X'].astype(np.float32)
+    y = data['y']
+    groups = data['groups']
+    print(f"{X.shape}  ({X.nbytes / 1024 ** 3:.2f} GB)")
 
-    print(f"\n{'=' * 60}")
-    print(f"FOLD {fold_idx + 1}/26")
-    print(f"{'=' * 60}")
+    return X, y, groups
 
-    # Fix: convert integer ID (e.g. 1, 25) to zero-padded string (e.g. '001', '025')
-    test_subject = str(groups_combined[test_idx][0]).zfill(3)
-    print(f"Test subject: {test_subject}")
-    print(f"Train samples: {len(train_idx):,}, Test samples: {len(test_idx):,}")
-    sys.stdout.flush()
+# ── Plot generation ───────────────────────────────────────────────────────────
 
-    # Check if already completed
-    filepath_a = f"/mnt/SFData/SUSTAIN_outputs/WTD/outputs_a/wearable/WTD/WTD_cnn/{test_subject}__LowerBack.json"
-    filepath_b = f"/mnt/SFData/SUSTAIN_outputs/WTD/outputs_b/wearable/WTD/WTD_cnn/{test_subject}__LowerBack.json"
+def save_plots(all_y_true, all_y_prob, all_histories, plot_dir):
+    """
+    Generate and save five diagnostic plots.
 
-    if Path(filepath_a).exists() or Path(filepath_b).exists():
-        print(f"Fold {fold_idx + 1} ({test_subject}) already completed - loading saved results")
-
-        # Load the saved JSON
-        filepath = filepath_a if Path(filepath_a).exists() else filepath_b
-        with open(filepath, 'r') as f:
-            saved_results = json.load(f)
-
-        # Extract saved predictions if they exist
-        if 'predictions' in saved_results:
-            # Split indices for part A and B
-            n_samples_a = len(groups_a)
-            test_idx_a = test_idx[test_idx < n_samples_a]
-            test_idx_b = test_idx[test_idx >= n_samples_a] - n_samples_a
-
-            # Get test data for this subject
-            test_indices = np.concatenate([test_idx_a, test_idx_b + len(X_a)])
-            y_test = labels_combined[test_indices]
-            y_pred = np.array(saved_results['predictions']['y_pred'])
-            y_prob = np.array(saved_results['predictions']['y_prob'])
-
-            # Add to aggregated lists
-            all_y_test.extend(y_test)
-            all_y_pred.extend(y_pred)
-            all_y_prob.extend(y_prob)
-
-            # Load training history if it exists
-            if 'training_history' in saved_results:
-                all_histories.append(saved_results['training_history'])
-
-            print(f"  Loaded {len(y_test)} test samples with predictions and probabilities")
-        else:
-            print(f"  Warning: No predictions found in saved file - skipping plot data")
-
-        continue
-
-    # Split indices for part A and B
-    n_samples_a = len(groups_a)
-    train_idx_a = train_idx[train_idx < n_samples_a]
-    train_idx_b = train_idx[train_idx >= n_samples_a] - n_samples_a
-    test_idx_a = test_idx[test_idx < n_samples_a]
-    test_idx_b = test_idx[test_idx >= n_samples_a] - n_samples_a
-
-    # Train/val split
-    np.random.seed(42)
-    train_idx_a_shuffled = np.random.permutation(train_idx_a)
-    train_idx_b_shuffled = np.random.permutation(train_idx_b)
-
-    val_split_a = int(0.9 * len(train_idx_a_shuffled))
-    val_split_b = int(0.9 * len(train_idx_b_shuffled))
-
-    actual_train_idx_a = train_idx_a_shuffled[:val_split_a]
-    actual_val_idx_a = train_idx_a_shuffled[val_split_a:]
-    actual_train_idx_b = train_idx_b_shuffled[:val_split_b]
-    actual_val_idx_b = train_idx_b_shuffled[val_split_b:]
-
-    print(f"  Training: {len(actual_train_idx_a) + len(actual_train_idx_b):,} samples")
-    print(f"  Validation: {len(actual_val_idx_a) + len(actual_val_idx_b):,} samples")
-    print(f"  Test: {len(test_idx_a) + len(test_idx_b):,} samples")
-    sys.stdout.flush()
-
-    # INDEX INTO PRE-LOADED DATA
-    print("[DEBUG] Indexing into pre-loaded data...")
-    index_start = time.time()
-    sys.stdout.flush()
-
-    # Training data - directly index from combined arrays
-    train_indices = np.concatenate([actual_train_idx_a, actual_train_idx_b + len(X_a)])
-    X_train = X_combined[train_indices]
-    y_train = labels_combined[train_indices]
-
-    # Validation data
-    val_indices = np.concatenate([actual_val_idx_a, actual_val_idx_b + len(X_a)])
-    X_val = X_combined[val_indices]
-    y_val = labels_combined[val_indices]
-
-    # Test data
-    test_indices = np.concatenate([test_idx_a, test_idx_b + len(X_a)])
-    X_test = X_combined[test_indices]
-    y_test = labels_combined[test_indices]
-
-    index_elapsed = time.time() - index_start
-    print(f"  ✓ Indexing complete in {index_elapsed:.3f} seconds")
-    print(f"    Train: {X_train.shape}, Val: {X_val.shape}, Test: {X_test.shape}")
-    print(f"    Memory for fold: ~{(X_train.nbytes + X_val.nbytes + X_test.nbytes) / 1024**3:.1f} GB")
-    sys.stdout.flush()
-
-    # Create model
-    print("[DEBUG] Creating model...")
-    sys.stdout.flush()
-
-    model = create_1d_cnn(
-        input_shape=input_shape,
-        num_conv_layers=best_params['num_conv_layers'],
-        filters=best_params['filters'],
-        kernel_size=best_params['kernel_size'],
-        pool_size=best_params['pool_size'],
-        dropout_rate=best_params['dropout_rate'],
-        dense_units=best_params['dense_units'],
-        learning_rate=best_params['learning_rate']
-    )
-
-    early_stop = keras.callbacks.EarlyStopping(
-        monitor='val_loss',
-        patience=10,
-        restore_best_weights=True,
-        verbose=1
-    )
-
-    reduce_lr = keras.callbacks.ReduceLROnPlateau(
-        monitor='val_loss',
-        factor=0.5,
-        patience=3,
-        min_lr=1e-6,
-        verbose=1
-    )
-
-    print(f"\nTraining model...")
-    sys.stdout.flush()
-
-    history = model.fit(
-        X_train, y_train,
-        batch_size=best_params['batch_size'],
-        epochs=best_params['epochs'],
-        validation_data=(X_val, y_val),
-        callbacks=[early_stop, reduce_lr],
-        verbose=1
-    )
-
-    print(f"Training complete! Stopped at epoch {len(history.history['loss'])}")
-
-    # Save training history for this fold
-    history_dict = {
-        'fold': fold_idx + 1,
-        'subject': test_subject,
-        'loss': history.history['loss'],
-        'val_loss': history.history['val_loss'],
-        'accuracy': history.history['accuracy'],
-        'val_accuracy': history.history['val_accuracy'],
-        'epochs_trained': len(history.history['loss'])
-    }
-    all_histories.append(history_dict)
-
-    # Predict — both binary and probability
-    y_prob = model.predict(X_test, batch_size=best_params['batch_size'], verbose=0).flatten()
-    y_pred = (y_prob > 0.5).astype(int)
-
-    # Calculate metrics
-    acc = accuracy_score(y_test, y_pred)
-    precision, recall, f1, _ = precision_recall_fscore_support(
-        y_test, y_pred, average='binary', zero_division=0
-    )
-    cm = confusion_matrix(y_test, y_pred)
-
-    # Store results
-    fold_results.append({
-        'fold': fold_idx + 1,
-        'subject': test_subject,
-        'n_test_samples': len(y_test),
-        'accuracy': acc,
-        'precision': precision,
-        'recall': recall,
-        'f1_score': f1,
-        'confusion_matrix': cm.tolist()
-    })
-
-    all_y_test.extend(y_test)
-    all_y_pred.extend(y_pred)
-    all_y_prob.extend(y_prob)
-
-    print(f"\nFold {fold_idx + 1} Results:")
-    print(f"  Accuracy: {acc:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
-    print(f"  Confusion Matrix:\n{cm}")
-
-    fold_elapsed = time.time() - fold_start
-    total_elapsed = time.time() - total_start
-    avg_per_fold = total_elapsed / (fold_idx + 1)
-    remaining = avg_per_fold * (26 - fold_idx - 1)
-
-    print(f"\nTiming:")
-    print(f"  Fold time: {timedelta(seconds=int(fold_elapsed))}")
-    print(f"  Total elapsed: {timedelta(seconds=int(total_elapsed))}")
-    print(f"  Estimated remaining: {timedelta(seconds=int(remaining))}")
-    sys.stdout.flush()
-
-    # Save individual fold results
-    wt_ref, data_len = get_subject_sensor_data(ref_metadata, test_subject, sensor_type="LowerBack")
-    weartime_list_, total_weartime_samples_, total_weartime_seconds, total_weartime_minutes_, total_weartime_hours_, coverage = overlapping_windows_to_sample_labels(
-        y_pred.tolist(), data_len)
-    performance_metrics = wtd_performance_metrics(weartime_list_, wt_ref, data_len)
-
-    output_dict = {
-        "participant_id": test_subject,
-        "position": "LowerBack",
-        "algo": "CNN_fullfeatures_WTD",
-        "version": "fullfeatures",
-        "thresholds": {
-            'num_conv_layers': best_params['num_conv_layers'],
-            'kernel_size': best_params['kernel_size'],
-            'pool_size': best_params['pool_size'],
-            'dropout_rate': best_params['dropout_rate'],
-            'dense_units': best_params['dense_units'],
-            'learning_rate': best_params['learning_rate'],
-            'batch_size': best_params['batch_size'],
-            'epochs': best_params['epochs']
-        },
-        "total_file_length": data_len,
-        "wt_sequences": [
-            {
-                "wt_id": i,
-                "start": int(row["start"]),
-                "end": int(row["end"])
-            } for i, row in weartime_list_.iterrows()
-        ],
-        "total_weartime_samples": int(total_weartime_samples_),
-        "total_weartime_hours": float(total_weartime_hours_),
-        "total_weartime_minutes": float(total_weartime_minutes_),
-        "performance_metrics": performance_metrics,
-        "predictions": {
-            "y_pred": y_pred.tolist(),
-            "y_prob": y_prob.tolist()
-        },
-        "training_history": history_dict
-    }
-
-    # Save results
-    if test_subject in IDs_a:
-        save_dir = "/mnt/SFData/SUSTAIN_outputs/WTD/outputs_a/wearable/WTD/WTD_cnn"
-        os.makedirs(save_dir, exist_ok=True)
-        filepath = os.path.join(save_dir, f"{test_subject}__LowerBack.json")
-        with open(filepath, "w") as f:
-            json.dump(output_dict, f, indent=2)
-        print(f"Saved: {filepath}")
-
-    elif test_subject in IDs_b:
-        save_dir = "/mnt/SFData/SUSTAIN_outputs/WTD/outputs_b/wearable/WTD/WTD_cnn"
-        os.makedirs(save_dir, exist_ok=True)
-        filepath = os.path.join(save_dir, f"{test_subject}__LowerBack.json")
-        with open(filepath, "w") as f:
-            json.dump(output_dict, f, indent=2)
-        print(f"Saved: {filepath}")
-
-    # Part A waking hour analysis
-    if test_subject in IDs_a:
-        performance_metrics = wtd_performance_metrics_waking_hours(weartime_list_, wt_ref, data_len)
-
-        output_dict = {
-            "participant_id": test_subject,
-            "position": "LowerBack",
-            "algo": "CNN_fullfeatures_WTD",
-            "version": "fullfeatures",
-            "thresholds": {
-                'num_conv_layers': best_params['num_conv_layers'],
-                'kernel_size': best_params['kernel_size'],
-                'pool_size': best_params['pool_size'],
-                'dropout_rate': best_params['dropout_rate'],
-                'dense_units': best_params['dense_units'],
-                'learning_rate': best_params['learning_rate'],
-                'batch_size': best_params['batch_size'],
-                'epochs': best_params['epochs']
-            },
-            "total_file_length": data_len,
-            "wt_sequences": [
-                {"wt_id": i, "start": int(row["start"]), "end": int(row["end"])}
-                for i, row in weartime_list_.iterrows()
-            ],
-            "total_weartime_samples": int(total_weartime_samples_),
-            "total_weartime_hours": float(total_weartime_hours_),
-            "total_weartime_minutes": float(total_weartime_minutes_),
-            "performance_metrics": performance_metrics,
-            "predictions": {
-                "y_pred": y_pred.tolist(),
-                "y_prob": y_prob.tolist()
-            },
-            "training_history": history_dict
-        }
-
-        save_dir = "/mnt/SFData/SUSTAIN_outputs/WTD/outputs_a_waking_hours/wearable/WTD/WTD_cnn"
-        os.makedirs(save_dir, exist_ok=True)
-        filepath = os.path.join(save_dir, f"{test_subject}__LowerBack.json")
-        with open(filepath, "w") as f:
-            json.dump(output_dict, f, indent=2)
-        print(f"Saved waking hours: {filepath}")
-
-    # Cleanup model and predictions (data stays in memory for next fold)
-    del model, y_pred
-    K.clear_session()
-    gc.collect()
-
-    print(f"{'=' * 60}\n")
-
-# ── Aggregate results ─────────────────────────────────────────
-total_time = time.time() - total_start
-
-print("\n" + "=" * 60)
-print("FINAL AGGREGATED RESULTS")
-print("=" * 60)
-
-if not fold_results:
-    print("All folds were already completed and skipped.")
-    print("Check saved JSON files in outputs_a and outputs_b for results.")
-    print(f"\nTotal runtime: {timedelta(seconds=int(total_time))}")
-    print("=" * 60)
-else:
-    results_df = pd.DataFrame(fold_results)
-    overall_cm = confusion_matrix(all_y_test, all_y_pred)
-    print(f"Mean Accuracy: {results_df['accuracy'].mean():.4f} ± {results_df['accuracy'].std():.4f}")
-    print(f"Mean Precision: {results_df['precision'].mean():.4f} ± {results_df['precision'].std():.4f}")
-    print(f"Mean Recall: {results_df['recall'].mean():.4f} ± {results_df['recall'].std():.4f}")
-    print(f"Mean F1-Score: {results_df['f1_score'].mean():.4f} ± {results_df['f1_score'].std():.4f}")
-    print(f"\nOverall Confusion Matrix:\n{overall_cm}")
-    print(f"\nTotal runtime: {timedelta(seconds=int(total_time))}")
-    print("=" * 60)
-
-    # Save results JSON
-    output_data = {
-        'model_type': 'CNN_1D',
-        'hyperparameters': best_params,
-        'mean_accuracy': float(results_df['accuracy'].mean()),
-        'std_accuracy': float(results_df['accuracy'].std()),
-        'mean_precision': float(results_df['precision'].mean()),
-        'std_precision': float(results_df['precision'].std()),
-        'mean_recall': float(results_df['recall'].mean()),
-        'std_recall': float(results_df['recall'].std()),
-        'mean_f1_score': float(results_df['f1_score'].mean()),
-        'std_f1_score': float(results_df['f1_score'].std()),
-        'overall_confusion_matrix': overall_cm.tolist(),
-        'total_runtime_seconds': int(total_time),
-        'per_fold_results': fold_results
-    }
-
-    output_file = Path(__file__).parent / "CNN_fullfeatures_results_lowback.json"
-    with open(output_file, 'w') as f:
-        json.dump(output_data, f, indent=2)
-    print(f"\nResults saved to {output_file}")
-
-    # Save training histories JSON
-    history_file = Path(__file__).parent / "CNN_training_histories_lowback.json"
-    with open(history_file, 'w') as f:
-        json.dump(all_histories, f, indent=2)
-    print(f"Training histories saved to {history_file}")
-
-# Generate plots if we have any data
-if all_y_test:
-    # ── Generate plots ────────────────────────────────────────
-    all_y_true = np.array(all_y_test)
-    all_y_prob_arr = np.array(all_y_prob)
-    plot_dir = Path(__file__).parent.parent / "figure_extraction_training"
+    Plots saved
+    -----------
+    calibration_curve.png
+    precision_recall_curve.png
+    roc_curve.png
+    loss_curves.png          (mean ± std across folds)
+    accuracy_curves.png      (mean ± std across folds)
+    """
+    plot_dir = Path(plot_dir)
     plot_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Calibration Curve
+    all_y_true = np.array(all_y_true)
+    all_y_prob = np.array(all_y_prob)
+
+    # 1. Calibration curve
     fig, ax = plt.subplots(figsize=(6, 6))
-    fraction_pos, mean_pred = calibration_curve(all_y_true, all_y_prob_arr, n_bins=10)
-    ax.plot(mean_pred, fraction_pos, 'o-', color='steelblue', label='CNN')
+    frac_pos, mean_pred = calibration_curve(all_y_true, all_y_prob, n_bins=10)
+    ax.plot(mean_pred, frac_pos, 'o-', color='steelblue', label='CNN')
     ax.plot([0, 1], [0, 1], 'k--', label='Perfect calibration')
     ax.set_xlabel('Mean Predicted Probability', fontsize=12)
     ax.set_ylabel('Fraction of Positives', fontsize=12)
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(plot_dir / "cnn_lowback_calibration_curve.png", dpi=150, bbox_inches='tight')
+    plt.savefig(plot_dir / "calibration_curve.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-    # 2. Precision-Recall Curve
+    # 2. Precision-Recall curve
     fig, ax = plt.subplots(figsize=(6, 6))
-    precision_vals, recall_vals, _ = precision_recall_curve(all_y_true, all_y_prob_arr)
-    ap = average_precision_score(all_y_true, all_y_prob_arr)
-    ax.plot(recall_vals, precision_vals, color='steelblue', lw=2, label=f'AP = {ap:.4f}')
+    prec, rec, _ = precision_recall_curve(all_y_true, all_y_prob)
+    ap = average_precision_score(all_y_true, all_y_prob)
+    ax.plot(rec, prec, color='steelblue', lw=2, label=f'AP = {ap:.4f}')
     ax.set_xlabel('Recall', fontsize=12)
     ax.set_ylabel('Precision', fontsize=12)
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(plot_dir / "cnn_lowback_precision_recall_curve.png", dpi=150, bbox_inches='tight')
+    plt.savefig(plot_dir / "precision_recall_curve.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-    # 3. ROC Curve
+    # 3. ROC curve
     fig, ax = plt.subplots(figsize=(6, 6))
-    fpr, tpr, _ = roc_curve(all_y_true, all_y_prob_arr)
+    fpr, tpr, _ = roc_curve(all_y_true, all_y_prob)
     roc_auc = auc(fpr, tpr)
     ax.plot(fpr, tpr, color='steelblue', lw=2, label=f'AUC = {roc_auc:.4f}')
     ax.plot([0, 1], [0, 1], 'k--', label='Random classifier')
@@ -590,66 +224,280 @@ if all_y_test:
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
-    plt.savefig(plot_dir / "cnn_lowback_roc_curve.png", dpi=150, bbox_inches='tight')
+    plt.savefig(plot_dir / "roc_curve.png", dpi=150, bbox_inches='tight')
     plt.close()
 
-    # 4. Loss curves (mean ± std across folds)
+    # 4 & 5. Loss and accuracy curves (mean ± std across folds)
     if all_histories:
         max_epochs = max(h['epochs_trained'] for h in all_histories)
 
-        def pad_history(values, max_len):
-            return values + [values[-1]] * (max_len - len(values))
+        def pad(values, length):
+            return values + [values[-1]] * (length - len(values))
 
-        train_loss = np.array([pad_history(h['loss'], max_epochs) for h in all_histories])
-        val_loss   = np.array([pad_history(h['val_loss'], max_epochs) for h in all_histories])
-        train_acc  = np.array([pad_history(h['accuracy'], max_epochs) for h in all_histories])
-        val_acc    = np.array([pad_history(h['val_accuracy'], max_epochs) for h in all_histories])
+        train_loss = np.array([pad(h['loss'],         max_epochs) for h in all_histories])
+        val_loss   = np.array([pad(h['val_loss'],     max_epochs) for h in all_histories])
+        train_acc  = np.array([pad(h['accuracy'],     max_epochs) for h in all_histories])
+        val_acc    = np.array([pad(h['val_accuracy'], max_epochs) for h in all_histories])
         epochs     = np.arange(1, max_epochs + 1)
 
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.plot(epochs, train_loss.mean(axis=0), color='steelblue', lw=2, label='Training loss')
-        ax.fill_between(epochs,
-                        train_loss.mean(axis=0) - train_loss.std(axis=0),
-                        train_loss.mean(axis=0) + train_loss.std(axis=0),
-                        alpha=0.15, color='steelblue')
-        ax.plot(epochs, val_loss.mean(axis=0), color='tomato', lw=2, label='Validation loss')
-        ax.fill_between(epochs,
-                        val_loss.mean(axis=0) - val_loss.std(axis=0),
-                        val_loss.mean(axis=0) + val_loss.std(axis=0),
-                        alpha=0.15, color='tomato')
-        ax.set_xlabel('Epoch', fontsize=12)
-        ax.set_ylabel('Binary Cross-Entropy Loss', fontsize=12)
-        ax.legend(fontsize=10)
-        ax.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(plot_dir / "cnn_lowback_loss_curves.png", dpi=150, bbox_inches='tight')
-        plt.close()
+        for metric_train, metric_val, ylabel, filename in [
+            (train_loss, val_loss, 'Binary Cross-Entropy Loss', 'loss_curves.png'),
+            (train_acc,  val_acc,  'Accuracy',                  'accuracy_curves.png'),
+        ]:
+            fig, ax = plt.subplots(figsize=(8, 5))
+            for values, colour, label in [
+                (metric_train, 'steelblue', f'Training {ylabel.split()[0].lower()}'),
+                (metric_val,   'tomato',    f'Validation {ylabel.split()[0].lower()}'),
+            ]:
+                mean, std = values.mean(axis=0), values.std(axis=0)
+                ax.plot(epochs, mean, color=colour, lw=2, label=label.capitalize())
+                ax.fill_between(epochs, mean - std, mean + std, alpha=0.15, color=colour)
+            ax.set_xlabel('Epoch', fontsize=12)
+            ax.set_ylabel(ylabel, fontsize=12)
+            ax.legend(fontsize=10)
+            ax.grid(alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(plot_dir / filename, dpi=150, bbox_inches='tight')
+            plt.close()
 
-        # 5. Accuracy curves (mean ± std across folds)
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.plot(epochs, train_acc.mean(axis=0), color='steelblue', lw=2, label='Training accuracy')
-        ax.fill_between(epochs,
-                        train_acc.mean(axis=0) - train_acc.std(axis=0),
-                        train_acc.mean(axis=0) + train_acc.std(axis=0),
-                        alpha=0.15, color='steelblue')
-        ax.plot(epochs, val_acc.mean(axis=0), color='tomato', lw=2, label='Validation accuracy')
-        ax.fill_between(epochs,
-                        val_acc.mean(axis=0) - val_acc.std(axis=0),
-                        val_acc.mean(axis=0) + val_acc.std(axis=0),
-                        alpha=0.15, color='tomato')
-        ax.set_xlabel('Epoch', fontsize=12)
-        ax.set_ylabel('Accuracy', fontsize=12)
-        ax.legend(fontsize=10)
-        ax.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(plot_dir / "cnn_lowback_accuracy_curves.png", dpi=150, bbox_inches='tight')
-        plt.close()
-
+    saved = ["calibration_curve.png", "precision_recall_curve.png", "roc_curve.png",
+             "loss_curves.png", "accuracy_curves.png"]
     print("\nPlots saved:")
-    print("  cnn_lowback_calibration_curve.png")
-    print("  cnn_lowback_precision_recall_curve.png")
-    print("  cnn_lowback_roc_curve.png")
-    print("  cnn_lowback_loss_curves.png")
-    print("  cnn_lowback_accuracy_curves.png")
-else:
-    print("\nNo plot data available (no predictions found)")
+    for name in saved:
+        print(f"  {plot_dir / name}")
+
+
+# ── Main LOSO loop ────────────────────────────────────────────────────────────
+
+def main():
+    cfg = CONFIG
+    hp  = cfg["hyperparameters"]
+    rng = np.random.default_rng(cfg["random_seed"])
+
+    output_dir = Path(cfg["output_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Load data ─────────────────────────────────────────────────────────────
+    print("\n" + "=" * 60)
+    print("LOADING DATA")
+    print("=" * 60)
+    t0 = time.time()
+    X, y, groups = load_npz_file(cfg["data_path"])
+    print(f"\n✓ Loaded in {timedelta(seconds=int(time.time() - t0))}")
+    print(f"  Shape  : {X.shape}")
+    print(f"  Memory : {X.nbytes / 1024**3:.2f} GB")
+    print(f"  Subjects: {len(np.unique(groups))}")
+    print("=" * 60 + "\n")
+    sys.stdout.flush()
+
+    input_shape      = X.shape[1:]
+    unique_subjects  = np.unique(groups)
+    n_folds          = len(unique_subjects)
+    gkf              = GroupKFold(n_splits=n_folds)
+
+    fold_results = []
+    all_y_test, all_y_pred, all_y_prob = [], [], []
+    all_histories = []
+
+    print(f"STARTING LOSO CROSS-VALIDATION ({n_folds} folds)")
+    print("=" * 60 + "\n")
+    total_start = time.time()
+
+    for fold_idx, (train_idx, test_idx) in enumerate(gkf.split(y, y, groups)):
+        fold_start  = time.time()
+        test_subject = str(groups[test_idx][0])
+
+        print(f"\n{'=' * 60}")
+        print(f"FOLD {fold_idx + 1}/{n_folds}  —  test subject: {test_subject}")
+        print(f"{'=' * 60}")
+
+        # ── Check for existing result ─────────────────────────────────────────
+        result_file = output_dir / f"subject_{test_subject}.json"
+        if result_file.exists():
+            print(f"  Already completed — loading {result_file.name}")
+            with open(result_file) as f:
+                saved = json.load(f)
+            if 'predictions' in saved:
+                all_y_test.extend(saved['predictions']['y_true'])
+                all_y_pred.extend(saved['predictions']['y_pred'])
+                all_y_prob.extend(saved['predictions']['y_prob'])
+            if 'training_history' in saved:
+                all_histories.append(saved['training_history'])
+            continue
+
+        # ── Train / val split ─────────────────────────────────────────────────
+        perm       = rng.permutation(len(train_idx))
+        val_cut    = int((1 - cfg["val_split"]) * len(train_idx))
+        tr_idx     = train_idx[perm[:val_cut]]
+        val_idx    = train_idx[perm[val_cut:]]
+
+        X_train, y_train = X[tr_idx],   y[tr_idx]
+        X_val,   y_val   = X[val_idx],  y[val_idx]
+        X_test,  y_test  = X[test_idx], y[test_idx]
+
+        print(f"  Train: {len(tr_idx):,}  |  Val: {len(val_idx):,}  |  Test: {len(test_idx):,}")
+        sys.stdout.flush()
+
+        # ── Build & train model ───────────────────────────────────────────────
+        model = create_1d_cnn(
+            input_shape     = input_shape,
+            num_conv_layers = hp['num_conv_layers'],
+            filters         = hp['filters'],
+            kernel_size     = hp['kernel_size'],
+            pool_size       = hp['pool_size'],
+            dropout_rate    = hp['dropout_rate'],
+            dense_units     = hp['dense_units'],
+            learning_rate   = hp['learning_rate'],
+        )
+
+        callbacks = [
+            keras.callbacks.EarlyStopping(
+                monitor='val_loss', patience=10,
+                restore_best_weights=True, verbose=1,
+            ),
+            keras.callbacks.ReduceLROnPlateau(
+                monitor='val_loss', factor=0.5,
+                patience=3, min_lr=1e-6, verbose=1,
+            ),
+        ]
+
+        history = model.fit(
+            X_train, y_train,
+            batch_size      = hp['batch_size'],
+            epochs          = hp['epochs'],
+            validation_data = (X_val, y_val),
+            callbacks       = callbacks,
+            verbose         = 1,
+        )
+
+        n_epochs = len(history.history['loss'])
+        print(f"  Training complete — stopped at epoch {n_epochs}")
+
+        history_dict = {
+            'fold'          : fold_idx + 1,
+            'subject'       : test_subject,
+            'loss'          : history.history['loss'],
+            'val_loss'      : history.history['val_loss'],
+            'accuracy'      : history.history['accuracy'],
+            'val_accuracy'  : history.history['val_accuracy'],
+            'epochs_trained': n_epochs,
+        }
+        all_histories.append(history_dict)
+
+        # ── Evaluate ──────────────────────────────────────────────────────────
+        y_prob = model.predict(X_test, batch_size=hp['batch_size'], verbose=0).flatten()
+        y_pred = (y_prob > 0.5).astype(int)
+
+        acc              = accuracy_score(y_test, y_pred)
+        prec, rec, f1, _ = precision_recall_fscore_support(
+            y_test, y_pred, average='binary', zero_division=0
+        )
+        cm = confusion_matrix(y_test, y_pred)
+
+        print(f"\n  Accuracy: {acc:.4f}  Precision: {prec:.4f}  "
+              f"Recall: {rec:.4f}  F1: {f1:.4f}")
+        print(f"  Confusion matrix:\n{cm}")
+
+        fold_results.append({
+            'fold'            : fold_idx + 1,
+            'subject'         : test_subject,
+            'n_test_samples'  : int(len(y_test)),
+            'accuracy'        : float(acc),
+            'precision'       : float(prec),
+            'recall'          : float(rec),
+            'f1_score'        : float(f1),
+            'confusion_matrix': cm.tolist(),
+        })
+
+        all_y_test.extend(y_test.tolist())
+        all_y_pred.extend(y_pred.tolist())
+        all_y_prob.extend(y_prob.tolist())
+
+        # ── Save per-fold result ──────────────────────────────────────────────
+        fold_output = {
+            'subject'         : test_subject,
+            'hyperparameters' : hp,
+            'n_test_samples'  : int(len(y_test)),
+            'accuracy'        : float(acc),
+            'precision'       : float(prec),
+            'recall'          : float(rec),
+            'f1_score'        : float(f1),
+            'confusion_matrix': cm.tolist(),
+            'predictions'     : {
+                'y_true': y_test.tolist(),
+                'y_pred': y_pred.tolist(),
+                'y_prob': y_prob.tolist(),
+            },
+            'training_history': history_dict,
+        }
+        with open(result_file, 'w') as f:
+            json.dump(fold_output, f, indent=2)
+        print(f"  Saved: {result_file}")
+
+        # ── Timing ────────────────────────────────────────────────────────────
+        elapsed   = time.time() - total_start
+        avg_fold  = elapsed / (fold_idx + 1)
+        remaining = avg_fold * (n_folds - fold_idx - 1)
+        print(f"\n  Fold time : {timedelta(seconds=int(time.time() - fold_start))}")
+        print(f"  Elapsed   : {timedelta(seconds=int(elapsed))}")
+        print(f"  Remaining : {timedelta(seconds=int(remaining))}")
+        sys.stdout.flush()
+
+        # ── Cleanup ───────────────────────────────────────────────────────────
+        del model, X_train, y_train, X_val, y_val, X_test, y_test, y_pred
+        K.clear_session()
+        gc.collect()
+
+    # ── Aggregate results ─────────────────────────────────────────────────────
+    total_time = time.time() - total_start
+    print("\n" + "=" * 60)
+    print("AGGREGATED RESULTS")
+    print("=" * 60)
+
+    if fold_results:
+        df = pd.DataFrame(fold_results)
+        overall_cm = confusion_matrix(all_y_test, all_y_pred)
+        for metric in ('accuracy', 'precision', 'recall', 'f1_score'):
+            print(f"  {metric.capitalize():12s}: {df[metric].mean():.4f} ± {df[metric].std():.4f}")
+        print(f"\nOverall confusion matrix:\n{overall_cm}")
+
+        summary = {
+            'model_type'             : 'CNN_1D_LOSO',
+            'hyperparameters'        : hp,
+            'mean_accuracy'          : float(df['accuracy'].mean()),
+            'std_accuracy'           : float(df['accuracy'].std()),
+            'mean_precision'         : float(df['precision'].mean()),
+            'std_precision'          : float(df['precision'].std()),
+            'mean_recall'            : float(df['recall'].mean()),
+            'std_recall'             : float(df['recall'].std()),
+            'mean_f1_score'          : float(df['f1_score'].mean()),
+            'std_f1_score'           : float(df['f1_score'].std()),
+            'overall_confusion_matrix': overall_cm.tolist(),
+            'total_runtime_seconds'  : int(total_time),
+            'per_fold_results'       : fold_results,
+        }
+        results_file = output_dir / "loso_summary.json"
+        with open(results_file, 'w') as f:
+            json.dump(summary, f, indent=2)
+        print(f"\nSummary saved to {results_file}")
+
+        history_file = output_dir / "training_histories.json"
+        with open(history_file, 'w') as f:
+            json.dump(all_histories, f, indent=2)
+        print(f"Histories saved to {history_file}")
+
+    else:
+        print("All folds were already completed; check per-subject JSON files.")
+
+    print(f"\nTotal runtime: {timedelta(seconds=int(total_time))}")
+    print("=" * 60)
+
+    # ── Plots ─────────────────────────────────────────────────────────────────
+    if all_y_test:
+        save_plots(all_y_test, all_y_prob, all_histories, cfg["plot_dir"])
+    else:
+        print("\nNo prediction data available for plotting.")
+
+
+if __name__ == "__main__":
+    main()
