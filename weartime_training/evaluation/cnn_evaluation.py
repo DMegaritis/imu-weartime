@@ -1,5 +1,6 @@
 """
 1D CNN training and evaluation using Leave-One-Subject-Out (LOSO) cross-validation.
+This script is added for reproducibility and future retraining of the CNN wear-time model.
 
 Loads windowed IMU data from NPZ files, trains a 1D CNN per fold, and evaluates
 using standard binary classification metrics. Saves per-fold JSON results, aggregated
@@ -14,7 +15,6 @@ Each NPZ file must contain:
 
 """
 
-import os
 import sys
 import json
 import gc
